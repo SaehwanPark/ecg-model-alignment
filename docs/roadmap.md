@@ -224,29 +224,29 @@ Engineering/prototyping model under the current strict criteria because the asso
 
 ### Checklist
 
-- [ ] Verify authenticated local model download.
-- [ ] Record exact Hugging Face revision/commit.
-- [ ] Inspect model card and reference inference code.
-- [ ] Reproduce official demo on supplied example images.
-- [ ] Implement deterministic MIMIC waveform-to-image rendering.
-- [ ] Match supported ECG layouts.
-- [ ] Extract 512-dimensional ECG embeddings.
-- [ ] Reproduce a documented zero-shot example if feasible.
-- [ ] Run on a small MIMIC ECG sample.
-- [ ] Record inference failures and GPU memory requirements.
-- [ ] Cache only derived non-PHI artifacts permitted by the local environment.
+- [x] Verify authenticated local model download.
+- [x] Record exact Hugging Face revision/commit (`80131ef06310dd1c8f2efe9082709c82433dc66e`).
+- [x] Inspect model card and reference inference code.
+- [x] Reproduce official demo on supplied example images.
+- [x] Implement deterministic MIMIC waveform-to-image rendering.
+- [x] Match supported ECG layouts.
+- [x] Extract 512-dimensional ECG embeddings.
+- [x] Reproduce a documented zero-shot example if feasible.
+- [x] Run on a small MIMIC ECG sample.
+- [x] Record inference failures and GPU memory requirements.
+- [x] Cache only derived non-PHI artifacts permitted by the local environment.
 
 ### Deliverables
 
-- [ ] `src/ecg_alignment/scoring/cards_clip.py`
-- [ ] `tests/test_cards_clip.py`
-- [ ] `reports/cards-clip-smoke-test.md`
+- [x] `src/ecg_alignment/scoring/cards_clip.py`
+- [x] `tests/test_cards_clip.py`
+- [x] `reports/cards-clip-smoke-test.md`
 
 ### Exit Criteria
 
-- [ ] End-to-end MIMIC ECG -> rendered image -> embedding works.
-- [ ] Output shape and determinism are tested.
-- [ ] The common model adapter is validated.
+- [x] End-to-end MIMIC ECG -> rendered image -> embedding works.
+- [x] Output shape and determinism are tested.
+- [x] The common model adapter is validated.
 
 ## Stage 5 — D-BETA Primary Transformer Path
 
