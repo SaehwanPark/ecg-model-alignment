@@ -13,6 +13,17 @@ from ecg_alignment.scoring.base import (
   WaveformPadMode,
   WaveformPreprocessConfig,
 )
+from ecg_alignment.scoring.cards_clip import (
+  DEFAULT_CARDS_CLIP_EMBEDDING_DIM,
+  DEFAULT_CARDS_CLIP_IMAGE_SIZE,
+  DEFAULT_CARDS_CLIP_MODEL_NAME,
+  DEFAULT_CARDS_CLIP_REVISION,
+  CardsClipAdapter,
+  CardsClipConfig,
+  compute_centroid_similarity_score,
+  cosine_similarity_1d,
+  load_cards_clip_model,
+)
 from ecg_alignment.scoring.preprocess import (
   pad_or_crop_waveform,
   preprocess_waveform,
@@ -44,6 +55,15 @@ __all__ = [
   "TransformerAdapterConfig",
   "WaveformPadMode",
   "WaveformPreprocessConfig",
+  "DEFAULT_CARDS_CLIP_EMBEDDING_DIM",
+  "DEFAULT_CARDS_CLIP_IMAGE_SIZE",
+  "DEFAULT_CARDS_CLIP_MODEL_NAME",
+  "DEFAULT_CARDS_CLIP_REVISION",
+  "CardsClipAdapter",
+  "CardsClipConfig",
+  "compute_centroid_similarity_score",
+  "cosine_similarity_1d",
+  "load_cards_clip_model",
   "pad_or_crop_waveform",
   "preprocess_waveform",
   "render_12lead_ecg_image",
@@ -59,3 +79,4 @@ __all__ = [
   "extract_lead_features",
   "score_ecg_waveform",
 ]
+

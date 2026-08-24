@@ -5,12 +5,16 @@ description = "Traditional ECG risk models vs multimodal transformer representat
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "huggingface-hub>=1.28.0",
     "matplotlib>=3.11.1",
     "numpy>=2.5.2",
     "pillow>=12.3.0",
     "polars>=1.44.0",
     "pyarrow>=25.0.1",
     "scipy>=1.18.1",
+    "torch>=2.13.0",
+    "torchvision>=0.28.0",
+    "transformers>=5.15.1",
     "wfdb>=4.3.1",
 ]
 
