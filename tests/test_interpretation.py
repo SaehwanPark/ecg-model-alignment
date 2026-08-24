@@ -12,6 +12,8 @@ Verifies:
 - Full synthesis object construction and markdown report generation.
 """
 
+import pytest
+
 from ecg_alignment.analysis import (
   BootstrapConfidenceInterval,
   DiscordanceQuadrant,
@@ -324,18 +326,32 @@ def test_synthesize_external_validation_recommendation() -> None:
 
 def test_synthesize_research_interpretation_and_markdown() -> None:
   """Test full research interpretation synthesis and report generation."""
-  synthesis = synthesize_research_interpretation()
+  import polars as pl
+  from ecg_alignment.analysis import run_primary_analysis
+  from ecg_alignment.cli import simulate_cohort_predictions
+
+  cohort_df = pl.DataFrame({
+    "subject_id": list(range(100)),
+    "study_id": list(range(100, 200)),
+    "split": ["dev"] * 60 + ["val"] * 20 + ["test"] * 20,
+  })
+  unified_table, _ = simulate_cohort_predictions(cohort_df, seed=42)
+  primary_result = run_primary_analysis(unified_table, n_bootstraps=20, random_seed=42)
+
+  # 1. Successful synthesis from empirical result
+  synthesis = synthesize_research_interpretation(primary_result=primary_result)
   assert isinstance(synthesis, ResearchInterpretationSynthesis)
-  assert synthesis.alignment.strength == AlignmentStrength.MODERATE
-  assert synthesis.within_a_gradients.all_categories_meaningful is True
   assert synthesis.contamination_audit.has_any_contamination is True
-  assert synthesis.external_validation_recommendation.status == ValidationRecommendationStatus.JUSTIFIED
+  assert synthesis.external_validation_recommendation.status in (
+    ValidationRecommendationStatus.JUSTIFIED,
+    ValidationRecommendationStatus.INCONCLUSIVE,
+    ValidationRecommendationStatus.NOT_JUSTIFIED,
+  )
 
   markdown = generate_research_interpretation_markdown(synthesis)
   assert isinstance(markdown, str)
   assert "# Stage 11 Research Report" in markdown
   assert "mermaid" in markdown
-  assert "MODERATE ALIGNMENT" in markdown
   assert "Quadrant 2" in markdown
   assert "RESEARCH BOUNDARY" in markdown
   assert "DISCLOSURE AUDIT" in markdown
@@ -344,5 +360,7 @@ def test_synthesize_research_interpretation_and_markdown() -> None:
   assert "External Validation" in markdown
   assert "Stage 11 is complete." in markdown
 
-  # Assert report text passes claims linter
-  # (Ignore intentional table headers describing prohibited claims)
+  # 2. Refuses None primary_result (fails closed against hardcoded static fallbacks)
+  with pytest.raises(ValueError, match="requires a valid PrimaryAnalysisResult"):
+    # pyright: ignore[reportArgumentType]
+    synthesize_research_interpretation(primary_result=None)  # type: ignore

@@ -466,7 +466,27 @@ class MockEcgAdapter(BaseEcgModelAdapter):
     self,
     batch_records: Sequence[tuple[npt.NDArray[np.float64], Sequence[str], int]],
   ) -> Any:
-    raise NotImplementedError
+    from ecg_alignment.scoring.base import BatchInferenceResult
+    embs: list[npt.NDArray[np.float64]] = []
+    masks: list[bool] = []
+    errs: list[str | None] = []
+    for sig, leads, fs in batch_records:
+      res = self.embed_single(sig, leads, fs)
+      if res.is_valid and res.embedding is not None:
+        embs.append(res.embedding)
+        masks.append(True)
+        errs.append(None)
+      else:
+        embs.append(np.zeros(self._config.embedding_dim, dtype=np.float64))
+        masks.append(False)
+        errs.append(res.error_message or "Invalid signal")
+    return BatchInferenceResult(
+      embeddings=np.array(embs, dtype=np.float64),
+      valid_mask=tuple(masks),
+      failure_reasons=tuple(errs),
+      count_total=len(batch_records),
+      count_valid=sum(masks),
+    )
 
 
 def test_extract_transformer_embeddings_and_traditional_cohort(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -553,12 +573,15 @@ def test_run_manifest_generation(tmp_path: Path) -> None:
     config=ProbeConfig(model_name="dbeta"),
   )
 
-  manifest = generate_run_manifest(clean_df, probe=probe, seed=42)
+  manifest = generate_run_manifest(clean_df, probe=probe, seed=42, data_mode="simulation")
   assert manifest["cohort_counts"]["total_patients"] == 2
   assert manifest["cohort_counts"]["dev_patients"] == 1
   assert manifest["cohort_counts"]["test_patients"] == 1
   assert manifest["probe_best_c"] == 1.0
   assert manifest["seed"] == 42
+  assert manifest["data_mode"] == "simulation"
+  assert "git_sha" in manifest
+  assert "uv_lock_sha256" in manifest
 
   manifest_file = tmp_path / "run_manifest.json"
   save_run_manifest(manifest, manifest_file)
@@ -566,4 +589,36 @@ def test_run_manifest_generation(tmp_path: Path) -> None:
   with open(manifest_file, "r", encoding="utf-8") as f:
     data = json.load(f)
   assert data["cohort_counts"]["total_patients"] == 2
+  assert data["data_mode"] == "simulation"
+
+
+def test_extract_transformer_embeddings_batch_and_checkpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+  """Test batched embedding extraction with periodic checkpointing."""
+  cohort_df = pl.DataFrame({
+    "subject_id": [1, 2, 3, 4],
+    "study_id": [101, 102, 103, 104],
+    "path": ["files/p1", "files/p2", "files/p3", "files/p4"],
+  })
+
+  def mock_read(p: Path | str) -> tuple[npt.NDArray[np.float64], list[str], int]:
+    return np.zeros((5000, 12), dtype=np.float64), ["I"] * 12, 500
+
+  monkeypatch.setattr("ecg_alignment.probe.read_ecg_waveform", mock_read)
+  adapter = MockEcgAdapter(embedding_dim=8)
+  ckpt_file = tmp_path / "checkpoints" / "embeddings.npz"
+
+  meta_df, embs = extract_transformer_embeddings(
+    cohort_df,
+    adapter=adapter,
+    batch_size=2,
+    checkpoint_path=ckpt_file,
+    checkpoint_interval=2,
+  )
+
+  assert len(meta_df) == 4
+  assert embs.shape == (4, 8)
+  assert ckpt_file.exists()
+  loaded_ckpt = np.load(ckpt_file)
+  assert "embeddings" in loaded_ckpt
+  assert loaded_ckpt["processed_count"] == 4
 

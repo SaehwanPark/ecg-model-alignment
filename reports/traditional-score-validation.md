@@ -137,6 +137,7 @@ A validation benchmark was conducted across a random consecutive sample of 1,000
 - [x] Deterministic waveform delineation and median beat extraction implemented.
 - [x] Continuous score and published risk categories preserved.
 - [x] Synthetic fixtures and category boundary test coverage.
-- [x] 1,000-record benchmark confirms 98.9% technical fidelity with explicit error handling.
+- [x] 1,000-record benchmark confirms 98.9% technical completion rate with explicit error handling.
 - [x] Code deliverables committed to `src/ecg_alignment/scoring/traditional.py`.
 - [x] Test suite committed to `tests/test_traditional_scoring.py` (36 passing tests).
+- [ ] Waveform measurement validation against external expert-annotated fiducial benchmarks (e.g. PTB-XL / CSE database) remains prospective translational work.

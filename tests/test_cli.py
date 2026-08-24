@@ -210,12 +210,13 @@ def test_cli_subcommands_execution(
   assert cohort_rc == 0
   assert (out_dir / "cohort-flow.md").exists()
 
-  # 3. Probe
+  # 3. Probe (simulate mode when WFDB waveforms absent)
   probe_rc = main([
     "probe",
     "--mimic-root", str(mimic_dir),
     "--ecg-root", str(ecg_dir),
     "--output-dir", str(out_dir),
+    "--simulate",
   ])
   assert probe_rc == 0
   assert (out_dir / "continuous-predictions.md").exists()
@@ -226,6 +227,7 @@ def test_cli_subcommands_execution(
     "--mimic-root", str(mimic_dir),
     "--ecg-root", str(ecg_dir),
     "--output-dir", str(out_dir),
+    "--simulate",
   ])
   assert analyze_rc == 0
   assert (out_dir / "primary-results.md").exists()
@@ -236,6 +238,7 @@ def test_cli_subcommands_execution(
     "--mimic-root", str(mimic_dir),
     "--ecg-root", str(ecg_dir),
     "--output-dir", str(out_dir),
+    "--simulate",
   ])
   assert sens_rc == 0
   assert (out_dir / "sensitivity-analyses.md").exists()
@@ -246,6 +249,7 @@ def test_cli_subcommands_execution(
     "--mimic-root", str(mimic_dir),
     "--ecg-root", str(ecg_dir),
     "--output-dir", str(out_dir),
+    "--simulate",
   ])
   assert interp_rc == 0
   assert (out_dir / "research-interpretation.md").exists()
@@ -256,10 +260,28 @@ def test_cli_subcommands_execution(
     "--mimic-root", str(mimic_dir),
     "--ecg-root", str(ecg_dir),
     "--output-dir", str(out_dir),
+    "--simulate",
     "--skip-figures",
   ])
   assert pipe_rc == 0
   assert (out_dir / "run_manifest.json").exists()
+
+
+def test_cli_probe_fails_closed_when_waveforms_missing(
+  synthetic_mimic_env: tuple[Path, Path],
+  tmp_path: Path,
+) -> None:
+  """Probe must fail closed with exit code 1 when waveforms missing and --simulate is not passed."""
+  mimic_dir, ecg_dir = synthetic_mimic_env
+  out_dir = tmp_path / "fail_closed_out"
+
+  rc = main([
+    "probe",
+    "--mimic-root", str(mimic_dir),
+    "--ecg-root", str(ecg_dir),
+    "--output-dir", str(out_dir),
+  ])
+  assert rc == 1
 
 
 def test_cli_simulate_and_predictions_cache(
@@ -281,6 +303,15 @@ def test_cli_simulate_and_predictions_cache(
   ])
   assert rc == 0
   assert pred_file.exists()
+
+  # Verify run manifest contains data_mode and checksums
+  manifest_file = out_dir / "run_manifest.json"
+  assert manifest_file.exists()
+  import json
+  with open(manifest_file, "r", encoding="utf-8") as f:
+    manifest = json.load(f)
+  assert manifest["data_mode"] == "simulation"
+  assert manifest["predictions_artifact_sha256"] is not None
 
   # Run analyze loading the cached predictions
   rc_analyze = main([

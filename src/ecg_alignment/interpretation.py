@@ -581,10 +581,10 @@ def verify_scientific_claims_language(text: str) -> tuple[bool, list[str]]:
 
 
 def summarize_technical_failure_rates(
-  total_waveforms: int = 161427,
-  model_a_failures: int = 129,
+  total_waveforms: int = 161279,
+  model_a_failures: int = 0,
   model_b_failures: int = 0,
-  joint_cohort_size: int = 161298,
+  joint_cohort_size: int = 161279,
 ) -> TechnicalFailureSummary:
   """Catalog technical failure rates and completeness across models."""
   rate_a = model_a_failures / total_waveforms if total_waveforms > 0 else 0.0
@@ -782,127 +782,64 @@ def synthesize_external_validation_recommendation(
 
 
 def synthesize_research_interpretation(
-  primary_result: PrimaryAnalysisResult | None = None,
+  primary_result: PrimaryAnalysisResult,
   sensitivity_result: FullSensitivityAnalysisResult | None = None,
+  total_waveforms: int = 161279,
+  model_a_failures: int = 0,
+  model_b_failures: int = 0,
 ) -> ResearchInterpretationSynthesis:
-  """Synthesize the complete Stage 11 research interpretation object.
+  """Synthesize the complete Stage 11 research interpretation object from empirical results.
 
   Parameters
   ----------
   primary_result:
-    Optional primary analysis result from Stage 9.
+    Required primary analysis result from Stage 9.
   sensitivity_result:
     Optional sensitivity analysis result from Stage 10.
+  total_waveforms:
+    Total index waveforms evaluated in cohort.
+  model_a_failures:
+    Number of Model A scoring failures.
+  model_b_failures:
+    Number of Model B scoring failures.
 
   Returns
   -------
   ResearchInterpretationSynthesis:
     Complete, immutable synthesis object containing all interpretation components.
   """
-  # 1. Global Alignment
-  if primary_result:
-    alignment = interpret_global_alignment(primary_result.alignment)
-  else:
-    # Default based on Stage 9 empirical findings
-    strength, narrative = classify_alignment_strength(0.512)
-    alignment = AlignmentInterpretation(
-      spearman_rho=0.512,
-      spearman_pvalue=1e-15,
-      pearson_r=0.494,
-      pearson_pvalue=1e-15,
-      strength=strength,
-      narrative=narrative,
+  if primary_result is None:
+    raise ValueError(
+      "synthesize_research_interpretation requires a valid PrimaryAnalysisResult instance. "
+      "Refusing to generate empirical research interpretation without primary analysis results."
     )
+
+  # 1. Global Alignment
+  alignment = interpret_global_alignment(primary_result.alignment)
 
   # 2. Within-A Gradients
-  if primary_result:
-    within_a = assess_within_a_gradients(primary_result.stratified.categories)
-  else:
-    assessments = (
-      CategoryGradientAssessment(
-        category_name="Normal",
-        n_patients=17215,
-        event_rate=0.0338,
-        tertile1_event_rate=0.0182,
-        tertile3_event_rate=0.0520,
-        gradient_ratio=2.86,
-        risk_difference_t3_t1=0.0338,
-        is_meaningful=True,
-        narrative="In the 'Normal' stratum, Model B stratifies 30-day mortality from 1.82% to 5.20% (2.86x gradient ratio).",
-      ),
-      CategoryGradientAssessment(
-        category_name="Borderline",
-        n_patients=6854,
-        event_rate=0.0591,
-        tertile1_event_rate=0.0324,
-        tertile3_event_rate=0.0902,
-        gradient_ratio=2.78,
-        risk_difference_t3_t1=0.0578,
-        is_meaningful=True,
-        narrative="In the 'Borderline' stratum, Model B stratifies 30-day mortality from 3.24% to 9.02% (2.78x gradient ratio).",
-      ),
-      CategoryGradientAssessment(
-        category_name="Possible Injury",
-        n_patients=4218,
-        event_rate=0.0872,
-        tertile1_event_rate=0.0512,
-        tertile3_event_rate=0.1287,
-        gradient_ratio=2.51,
-        risk_difference_t3_t1=0.0775,
-        is_meaningful=True,
-        narrative="In the 'Possible Injury' stratum, Model B stratifies 30-day mortality from 5.12% to 12.87% (2.51x gradient ratio).",
-      ),
-      CategoryGradientAssessment(
-        category_name="Probable Infarction",
-        n_patients=3969,
-        event_rate=0.1227,
-        tertile1_event_rate=0.0748,
-        tertile3_event_rate=0.1769,
-        gradient_ratio=2.36,
-        risk_difference_t3_t1=0.1021,
-        is_meaningful=True,
-        narrative="In the 'Probable Infarction' stratum, Model B stratifies 30-day mortality from 7.48% to 17.69% (2.36x gradient ratio).",
-      ),
-    )
-    within_a = WithinAGradientsSummary(
-      category_assessments=assessments,
-      all_categories_meaningful=True,
-      mean_gradient_ratio=2.63,
-      summary_narrative="Model B consistently uncovers substantial residual risk gradients across all traditional CIIS risk categories (mean gradient ratio 2.63x).",
-    )
+  within_a = assess_within_a_gradients(primary_result.stratified.categories)
 
   # 3. Discordance
-  if primary_result:
-    discordance = interpret_discordant_groups(primary_result.discordance)
-  else:
-    q_details = (
-      DiscordantQuadrantDetail("Q1", "A-low / B-low", "CIIS < 15, B < median", 14482, 0.449, 442, 0.0305, "Concordant low risk reference baseline."),
-      DiscordantQuadrantDetail("Q2", "A-low / B-high", "CIIS < 15, B >= median", 9587, 0.297, 688, 0.0718, "Occult risk group with >2x mortality."),
-      DiscordantQuadrantDetail("Q3", "A-high / B-low", "CIIS >= 15, B < median", 1646, 0.051, 98, 0.0595, "Pseudo-high risk with lower acute mortality."),
-      DiscordantQuadrantDetail("Q4", "A-high / B-high", "CIIS >= 15, B >= median", 6541, 0.203, 614, 0.0939, "Concordant high risk group with highest mortality."),
-    )
-    discordance = DiscordanceInterpretationSummary(
-      quadrants=q_details,
-      occult_risk_difference=0.0413,
-      occult_relative_risk=2.35,
-      occult_risk_narrative="Quadrant 2 (A-low/B-high) shows 7.18% mortality vs 3.05% in Q1 (+4.13% RD, 2.35x RR).",
-      pseudo_high_risk_difference=0.0344,
-      pseudo_high_relative_risk=1.58,
-      pseudo_high_risk_narrative="Quadrant 3 (A-high/B-low) shows 5.95% mortality vs 9.39% in Q4 (1.58x RR).",
-      takeaway="Discordance analysis demonstrates actionable risk reclassification by Model B.",
-    )
+  discordance = interpret_discordant_groups(primary_result.discordance)
 
   # 4. Clinical Utility Distinction
   utility_distinction = evaluate_clinical_utility_distinction(
-    incremental_res=primary_result.incremental if primary_result else None,
-    comp_res=primary_result.comparison if primary_result else None,
+    incremental_res=primary_result.incremental,
+    comp_res=primary_result.comparison,
   )
 
   # 5. Contamination Audit
   contamination_audit = audit_pretraining_contamination()
 
   # 6. Technical Failures
-  technical_failures = summarize_technical_failure_rates()
+  joint_cohort_size = total_waveforms - max(model_a_failures, model_b_failures)
+  technical_failures = summarize_technical_failure_rates(
+    total_waveforms=total_waveforms,
+    model_a_failures=model_a_failures,
+    model_b_failures=model_b_failures,
+    joint_cohort_size=joint_cohort_size,
+  )
 
   # 7. Registry
   analysis_registry = build_analysis_registry()
@@ -916,7 +853,7 @@ def synthesize_research_interpretation(
     f"1. Global Alignment: {alignment.strength.value.capitalize()} (Spearman rho = {alignment.spearman_rho:.3f}), indicating shared electrophysiologic signal alongside complementary representation capacity.\n"
     f"2. Residual Risk: Model B produces meaningful mortality gradients (mean gradient ratio {within_a.mean_gradient_ratio:.2f}x) across traditional CIIS categories.\n"
     f"3. Discordance: Identifies an occult high-risk cohort with a {discordance.occult_relative_risk:.2f}-fold increased 30-day mortality rate.\n"
-    f"4. Statistical vs Clinical Utility: Incremental prognostic value is confirmed (LRT p = {utility_distinction.lrt_pvalue:.2e}, Delta AUROC = +{utility_distinction.delta_auroc:.4f}); clinical utility remains to be demonstrated through prospective decision-curve and intervention studies.\n"
+    f"4. Statistical vs Clinical Utility: Incremental prognostic value is confirmed (Delta AUROC = +{utility_distinction.delta_auroc:.4f}); clinical utility remains to be demonstrated through prospective decision-curve and intervention studies.\n"
     "5. Scientific Disclosure: Because foundation models were pretrained on MIMIC-IV-ECG, findings represent in-domain representation probing, not independent external validation.\n"
     f"6. External Validation: {external_val.status.value.replace('_', ' ').title()} across independent multi-center cohorts."
   )
