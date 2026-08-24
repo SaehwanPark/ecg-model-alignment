@@ -86,12 +86,34 @@ def compute_patient_death_table(
     summary = summary.join(hosp_deaths, on="subject_id", how="left").join(
       last_discharges, on="subject_id", how="left"
     )
+
+    if "first_hosp_death_dt" in summary.columns:
+      if summary["first_hosp_death_dt"].dtype == pl.Null:
+        summary = summary.with_columns(pl.col("first_hosp_death_dt").cast(pl.Datetime("us")))
+    else:
+      summary = summary.with_columns(
+        pl.lit(None).cast(pl.Datetime("us")).alias("first_hosp_death_dt")
+      )
+
+    if "last_disch_dt" in summary.columns:
+      if summary["last_disch_dt"].dtype == pl.Null:
+        summary = summary.with_columns(pl.col("last_disch_dt").cast(pl.Datetime("us")))
+    else:
+      summary = summary.with_columns(
+        pl.lit(None).cast(pl.Datetime("us")).alias("last_disch_dt")
+      )
+
+    if "in_hosp_death_flag" not in summary.columns:
+      summary = summary.with_columns(pl.lit(0).cast(pl.Int64).alias("in_hosp_death_flag"))
+    else:
+      summary = summary.with_columns(pl.col("in_hosp_death_flag").fill_null(0).cast(pl.Int64))
   else:
     summary = summary.with_columns(
       pl.lit(None).cast(pl.Datetime("us")).alias("first_hosp_death_dt"),
       pl.lit(0).cast(pl.Int64).alias("in_hosp_death_flag"),
       pl.lit(None).cast(pl.Datetime("us")).alias("last_disch_dt"),
     )
+
 
   return summary
 

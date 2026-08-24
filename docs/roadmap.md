@@ -335,17 +335,17 @@ Create a patient-level analytic cohort before fitting the transformer probe.
 
 ### Checklist
 
-- [ ] Apply adult eligibility.
-- [ ] Apply waveform technical eligibility.
-- [ ] Apply outcome follow-up eligibility.
-- [ ] Select earliest eligible ECG per patient.
-- [ ] Quantify exclusions at each step.
-- [ ] Produce a cohort flow table.
-- [ ] Generate deterministic patient-disjoint split.
-- [ ] Save split assignments separately from model outputs.
-- [ ] Freeze the random seed.
-- [ ] Verify no `subject_id` overlap across splits.
-- [ ] Add a test that fails on split overlap.
+- [x] Apply adult eligibility.
+- [x] Apply waveform technical eligibility.
+- [x] Apply outcome follow-up eligibility.
+- [x] Select earliest eligible ECG per patient.
+- [x] Quantify exclusions at each step.
+- [x] Produce a cohort flow table.
+- [x] Generate deterministic patient-disjoint split.
+- [x] Save split assignments separately from model outputs.
+- [x] Freeze the random seed.
+- [x] Verify no `subject_id` overlap across splits.
+- [x] Add a test that fails on split overlap.
 
 ### Suggested initial split
 
@@ -357,14 +357,14 @@ Create a patient-level analytic cohort before fitting the transformer probe.
 
 ### Deliverables
 
-- [ ] `src/ecg_alignment/split.py`
-- [ ] `tests/test_split.py`
-- [ ] `reports/cohort-flow.md`
+- [x] `src/ecg_alignment/split.py`
+- [x] `tests/test_split.py`
+- [x] `reports/cohort-flow.md`
 
 ### Exit Criteria
 
-- [ ] Final test subject IDs are frozen.
-- [ ] No final-test outcome has been used for model or hyperparameter selection.
+- [x] Final test subject IDs are frozen.
+- [x] No final-test outcome has been used for model or hyperparameter selection.
 
 ## Stage 8 — Build Continuous Predictions
 
