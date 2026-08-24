@@ -14,7 +14,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -100,6 +100,7 @@ class PerformanceComparisonResult:
   delta_auprc: BootstrapConfidenceInterval  # AUPRC(B) - AUPRC(A)
   delta_brier: BootstrapConfidenceInterval  # Brier(A) - Brier(B) (positive means B is better)
   p_value_auroc_diff: float
+  delta_log_loss: BootstrapConfidenceInterval | None = None  # Loss(A) - Loss(B) (positive means B is better)
 
 
 @dataclass(frozen=True)
@@ -191,6 +192,7 @@ class IncrementalInformationResult:
   auroc_improvement: BootstrapConfidenceInterval  # AUROC(A+B) - AUROC(A)
   brier_improvement: BootstrapConfidenceInterval  # Brier(A) - Brier(A+B)
   held_out_loss_reduction: float  # Loss(A) - Loss(A+B)
+  held_out_loss_reduction_ci: BootstrapConfidenceInterval | None = None
 
 
 @dataclass(frozen=True)
@@ -737,11 +739,21 @@ def compare_models_performance(
     random_seed=random_seed + 2,
   )
 
+  delta_log_loss, _ = bootstrap_metric_difference(
+    compute_binary_log_loss,
+    yt,
+    pa,
+    pb,
+    n_bootstraps=n_bootstraps,
+    random_seed=random_seed + 3,
+  )
+
   return PerformanceComparisonResult(
     delta_auroc=delta_auroc,
     delta_auprc=delta_auprc,
     delta_brier=delta_brier,
     p_value_auroc_diff=p_val_auc,
+    delta_log_loss=delta_log_loss,
   )
 
 
@@ -1177,6 +1189,16 @@ def compute_incremental_information(
     random_seed=random_seed + 1,
   )
 
+  # Bootstrap Log-Loss reduction: Loss(A) - Loss(A+B)
+  delta_loss, _ = bootstrap_metric_difference(
+    compute_binary_log_loss,
+    y_test,
+    probs_test_a,
+    probs_test_ab,
+    n_bootstraps=n_bootstraps,
+    random_seed=random_seed + 2,
+  )
+
   loss_reduction = eval_a.held_out_log_loss - eval_ab.held_out_log_loss
 
   return IncrementalInformationResult(
@@ -1189,6 +1211,7 @@ def compute_incremental_information(
     auroc_improvement=delta_auc,
     brier_improvement=delta_brier,
     held_out_loss_reduction=loss_reduction,
+    held_out_loss_reduction_ci=delta_loss,
   )
 
 
@@ -1458,18 +1481,28 @@ def generate_primary_figures(
 def generate_primary_results_markdown(
   result: PrimaryAnalysisResult,
   title: str = "Stage 9 Primary Analysis: ECG Risk Alignment, Discordance, and Incremental Information",
+  data_mode: Literal["real", "simulation"] | str = "real",
 ) -> str:
   """Generate a comprehensive Markdown report documenting all Stage 9 primary findings.
 
   Args:
     result: PrimaryAnalysisResult instance.
     title: Report title.
+    data_mode: Data provenance mode ('real' or 'simulation').
 
   Returns:
     Formatted Markdown string.
   """
+  provenance_banner = (
+    "> **Data Source:** REAL MIMIC-IV-ECG predictions"
+    if str(data_mode).lower() == "real"
+    else "> **Data Source:** SIMULATION — NOT EMPIRICAL RESULTS"
+  )
+
   lines = [
     f"# {title}",
+    "",
+    provenance_banner,
     "",
     "**Stage:** Stage 9 — Primary Analysis  ",
     "**Status:** Completed and Verified  ",
@@ -1595,7 +1628,7 @@ def generate_primary_results_markdown(
     "",
     f"- **Held-out AUROC Improvement ($\\Delta\\text{{AUROC}}$):** **{result.incremental.auroc_improvement.formatted(4)}**",
     f"- **Held-out Brier Score Improvement ($\\Delta\\text{{Brier}}$):** **{result.incremental.brier_improvement.formatted(4)}**",
-    f"- **Held-out Log-Loss Reduction:** `{result.incremental.held_out_loss_reduction:.4f}`",
+    f"- **Held-out Log-Loss Reduction ($\\Delta\\text{{Log-Loss}}$):** {f'**+{result.incremental.held_out_loss_reduction:.4f}** ({result.incremental.held_out_loss_reduction_ci.ci_lower:.4f}–{result.incremental.held_out_loss_reduction_ci.ci_upper:.4f})' if result.incremental.held_out_loss_reduction_ci is not None else f'`{result.incremental.held_out_loss_reduction:.4f}`'}",
     f"- **Descriptive Development LRT Statistic ($\\Delta G^2$):** `{result.incremental.lrt_statistic:.2f}` ($df={result.incremental.lrt_degrees_of_freedom}$, $p = {result.incremental.lrt_pvalue:.2e}$)",
     "",
     "> [!NOTE]",

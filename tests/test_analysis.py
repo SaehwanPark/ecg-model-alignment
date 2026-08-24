@@ -325,3 +325,36 @@ def test_run_primary_analysis_firewall_violation() -> None:
   )
   with pytest.raises(ValueError, match="Predictor-information firewall violation"):
     run_primary_analysis(test_df)
+
+
+def test_primary_results_strata_and_quadrant_invariants() -> None:
+  """Verify that strata and discordance quadrant patient and event counts strictly sum to test totals."""
+  dev_df = _generate_synthetic_test_df(n_samples=100, seed=1).with_columns(pl.lit("dev").alias("split"))
+  test_df = _generate_synthetic_test_df(n_samples=250, seed=2).with_columns(pl.lit("test").alias("split"))
+  unified_df = pl.concat([dev_df, test_df])
+
+  result = run_primary_analysis(unified_df, n_bootstraps=30)
+
+  # 1. CIIS Strata sum invariant
+  strata_n_sum = sum(cat.n_total for cat in result.stratified.categories)
+  strata_event_sum = sum(cat.n_events for cat in result.stratified.categories)
+  assert strata_n_sum == result.n_patients
+  assert strata_event_sum == result.n_events
+
+  # 2. Quadrants sum invariant
+  quad_n_sum = sum(q.n_patients for q in result.discordance.quadrants)
+  quad_event_sum = sum(q.n_events for q in result.discordance.quadrants)
+  assert quad_n_sum == result.n_patients
+  assert quad_event_sum == result.n_events
+
+  # 3. Log-loss reduction CI verification
+  assert result.incremental.held_out_loss_reduction_ci is not None
+  assert result.comparison.delta_log_loss is not None
+
+  # 4. Markdown report provenance banner and log-loss CI verification
+  md_real = generate_primary_results_markdown(result, data_mode="real")
+  assert "> **Data Source:** REAL MIMIC-IV-ECG predictions" in md_real
+  assert "Held-out Log-Loss Reduction" in md_real
+
+  md_sim = generate_primary_results_markdown(result, data_mode="simulation")
+  assert "> **Data Source:** SIMULATION — NOT EMPIRICAL RESULTS" in md_sim

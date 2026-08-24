@@ -53,6 +53,7 @@ from ecg_alignment.probe import (
   fit_logistic_probe,
   generate_continuous_predictions_markdown,
   generate_run_manifest,
+  load_and_verify_unified_prediction_table,
   load_unified_prediction_table,
   save_run_manifest,
   save_unified_prediction_table,
@@ -91,7 +92,10 @@ class CliContext:
   seed: int
   verbose: bool
   simulate: bool = False
+  allow_simulated_artifact: bool = False
   predictions_path: Path | None = None
+  checkpoint_path: Path | None = None
+  checkpoint_interval: int = 5000
   max_records: int | None = None
   n_bootstraps: int = 50
   device: str = "cpu"
@@ -201,6 +205,12 @@ def build_parser() -> argparse.ArgumentParser:
     help="Execute in simulation mode using synthetic scores and embeddings",
   )
   common_flags.add_argument(
+    "--allow-simulated-artifact",
+    action="store_true",
+    default=False,
+    help="Permit loading a simulation-generated prediction artifact even when running in real mode",
+  )
+  common_flags.add_argument(
     "--device",
     type=str,
     default="cpu",
@@ -218,6 +228,18 @@ def build_parser() -> argparse.ArgumentParser:
     type=str,
     default=None,
     help="Path to load or save authoritative unified prediction table artifact",
+  )
+  common_flags.add_argument(
+    "--checkpoint-path",
+    type=str,
+    default=None,
+    help="Optional file path for intermediate embedding checkpoint saving/resuming",
+  )
+  common_flags.add_argument(
+    "--checkpoint-interval",
+    type=int,
+    default=5000,
+    help="Number of records between embedding checkpoints",
   )
   common_flags.add_argument(
     "--max-records",
@@ -360,8 +382,12 @@ def create_cli_context(args: argparse.Namespace) -> CliContext:
   seed = int(getattr(args, "seed", DEFAULT_SPLIT_SEED))
   verbose = bool(getattr(args, "verbose", False))
   simulate = bool(getattr(args, "simulate", False))
+  allow_simulated_artifact = bool(getattr(args, "allow_simulated_artifact", False))
   pred_path_arg = getattr(args, "predictions_path", None)
   predictions_path = Path(pred_path_arg).expanduser().resolve() if pred_path_arg is not None else None
+  ckpt_path_arg = getattr(args, "checkpoint_path", None)
+  checkpoint_path = Path(ckpt_path_arg).expanduser().resolve() if ckpt_path_arg is not None else None
+  checkpoint_interval = int(getattr(args, "checkpoint_interval", 5000) or 5000)
   max_records = int(getattr(args, "max_records", 0)) if getattr(args, "max_records", None) is not None else None
   n_bootstraps = int(getattr(args, "n_bootstraps", 50))
   device = str(getattr(args, "device", "cpu") or "cpu")
@@ -374,7 +400,10 @@ def create_cli_context(args: argparse.Namespace) -> CliContext:
     seed=seed,
     verbose=verbose,
     simulate=simulate,
+    allow_simulated_artifact=allow_simulated_artifact,
     predictions_path=predictions_path,
+    checkpoint_path=checkpoint_path,
+    checkpoint_interval=checkpoint_interval,
     max_records=max_records,
     n_bootstraps=n_bootstraps,
     device=device,
@@ -485,6 +514,8 @@ def build_real_predictions_for_cohort(
   seed: int = DEFAULT_PROBE_SEED,
   device: str = "cpu",
   batch_size: int = 32,
+  checkpoint_path: Path | None = None,
+  checkpoint_interval: int = 5000,
   verbose: bool = False,
 ) -> tuple[pl.DataFrame, TrainedProbe]:
   """Score Model A (CIIS) and Model B (D-BETA + linear probe) on real waveforms."""
@@ -497,7 +528,14 @@ def build_real_predictions_for_cohort(
   if verbose:
     print(f"[Scoring] Extracting Model B (D-BETA) representations on {device} (batch size {batch_size}) for {len(cohort_df):,} waveforms...")
   adapter = DbetaAdapter(DbetaConfig(device=device, batch_size=batch_size))
-  meta_df, embeddings = extract_transformer_embeddings(cohort_df, adapter=adapter, ecg_data_dir=ecg_root)
+  meta_df, embeddings = extract_transformer_embeddings(
+    cohort_df,
+    adapter=adapter,
+    ecg_data_dir=ecg_root,
+    batch_size=batch_size,
+    checkpoint_path=checkpoint_path,
+    checkpoint_interval=checkpoint_interval,
+  )
 
   dev_mask = (cohort_df["split"] == "dev").to_numpy()
   val_mask = (cohort_df["split"] == "val").to_numpy()
@@ -602,7 +640,7 @@ def simulate_cohort_predictions(
   # Ensure both classes exist in dev/val
   if len(np.unique(dev_y)) < 2 and len(dev_y) >= 2:
     dev_y[0] = 1
-    dev_y[0] = 0
+    dev_y[1] = 0
   if len(np.unique(val_y)) < 2 and len(val_y) >= 2:
     val_y[0] = 1
     val_y[1] = 0
@@ -631,11 +669,17 @@ def run_probe(
     if ctx.verbose:
       print(f"Loading cached predictions from {ctx.predictions_path}...")
     try:
-      unified_table = load_unified_prediction_table(ctx.predictions_path)
+      unified_table = load_and_verify_unified_prediction_table(
+        ctx.predictions_path,
+        requested_mode="simulation" if ctx.simulate else "real",
+        allow_simulated_artifact=ctx.allow_simulated_artifact,
+      )
       stats = compute_prediction_summary_statistics(unified_table)
       out_path = Path(report_out) if report_out else ctx.output_dir / "continuous-predictions.md"
       out_path.parent.mkdir(parents=True, exist_ok=True)
-      md = generate_continuous_predictions_markdown(stats)
+      md = generate_continuous_predictions_markdown(
+        stats, data_mode="simulation" if ctx.simulate else "real"
+      )
       out_path.write_text(md, encoding="utf-8")
       print(f"[Probe] Report written to: {out_path}")
       return 0
@@ -681,6 +725,8 @@ def run_probe(
         seed=ctx.seed,
         device=ctx.device,
         batch_size=ctx.batch_size,
+        checkpoint_path=ctx.checkpoint_path,
+        checkpoint_interval=ctx.checkpoint_interval,
         verbose=ctx.verbose,
       )
       data_mode = "real"
@@ -718,7 +764,7 @@ def run_probe(
 
   out_path = Path(report_out) if report_out else ctx.output_dir / "continuous-predictions.md"
   out_path.parent.mkdir(parents=True, exist_ok=True)
-  md = generate_continuous_predictions_markdown(stats, probe=probe)
+  md = generate_continuous_predictions_markdown(stats, probe=probe, data_mode=data_mode)
   out_path.write_text(md, encoding="utf-8")
   print(f"[Probe] Report written to: {out_path}")
 
@@ -727,11 +773,20 @@ def run_probe(
 
 def _get_unified_table(ctx: CliContext) -> pl.DataFrame:
   """Retrieve unified prediction table from cache or derive it."""
+  requested_mode = "simulation" if ctx.simulate else "real"
   if ctx.predictions_path is not None and ctx.predictions_path.exists():
-    return load_unified_prediction_table(ctx.predictions_path)
+    return load_and_verify_unified_prediction_table(
+      ctx.predictions_path,
+      requested_mode=requested_mode,
+      allow_simulated_artifact=ctx.allow_simulated_artifact,
+    )
   default_cache = ctx.output_dir / "predictions.parquet"
   if default_cache.exists():
-    return load_unified_prediction_table(default_cache)
+    return load_and_verify_unified_prediction_table(
+      default_cache,
+      requested_mode=requested_mode,
+      allow_simulated_artifact=ctx.allow_simulated_artifact,
+    )
 
   paths = DataPaths(mimic_iv_dir=ctx.mimic_root, mimic_iv_ecg_dir=ctx.ecg_root)
   record_df, patients_df, admissions_df = load_dataset_tables(paths)
@@ -803,7 +858,9 @@ def run_analyze(
 
   out_path = Path(report_out) if report_out else ctx.output_dir / "primary-results.md"
   out_path.parent.mkdir(parents=True, exist_ok=True)
-  md = generate_primary_results_markdown(primary_result)
+  md = generate_primary_results_markdown(
+    primary_result, data_mode="simulation" if ctx.simulate else "real"
+  )
   out_path.write_text(md, encoding="utf-8")
   print(f"[Analysis] Report written to: {out_path}")
 
@@ -854,7 +911,9 @@ def run_sensitivity(ctx: CliContext, report_out: str | None = None) -> int:
 
   out_path = Path(report_out) if report_out else ctx.output_dir / "sensitivity-analyses.md"
   out_path.parent.mkdir(parents=True, exist_ok=True)
-  md = generate_sensitivity_report_markdown(sens_result)
+  md = generate_sensitivity_report_markdown(
+    sens_result, data_mode="simulation" if ctx.simulate else "real"
+  )
   out_path.write_text(md, encoding="utf-8")
   print(f"[Sensitivity] Report written to: {out_path}")
 
@@ -871,9 +930,17 @@ def run_interpret(
   if ctx.verbose:
     print("Synthesizing research interpretation and scientific translation roadmap...")
 
+  unified_table: pl.DataFrame | None = None
+  try:
+    unified_table = _get_unified_table(ctx)
+  except Exception:
+    unified_table = None
+
   if primary_result is None:
+    if unified_table is None:
+      print("[Interpretation] Error: Prediction table not available", file=sys.stderr)
+      return 1
     try:
-      unified_table = _get_unified_table(ctx)
       primary_result = run_primary_analysis(
         unified_table,
         n_bootstraps=ctx.n_bootstraps,
@@ -883,9 +950,8 @@ def run_interpret(
       print(f"[Interpretation] Error deriving primary analysis: {exc}", file=sys.stderr)
       return 1
 
-  if sensitivity_result is None:
+  if sensitivity_result is None and unified_table is not None:
     try:
-      unified_table = _get_unified_table(ctx)
       test_df = unified_table.filter(pl.col("split") == "test")
       dev_df = unified_table.filter(pl.col("split") == "dev")
       sensitivity_result = run_sensitivity_analyses(
@@ -897,9 +963,24 @@ def run_interpret(
     except Exception:
       sensitivity_result = None
 
+  total_waveforms = len(unified_table) if unified_table is not None else None
+  model_a_failures = (
+    int((~unified_table["model_a_valid"]).sum())
+    if unified_table is not None and "model_a_valid" in unified_table.columns
+    else 0
+  )
+  model_b_failures = (
+    int((~unified_table["model_b_valid"]).sum())
+    if unified_table is not None and "model_b_valid" in unified_table.columns
+    else 0
+  )
+
   synthesis = synthesize_research_interpretation(
     primary_result=primary_result,
     sensitivity_result=sensitivity_result,
+    total_waveforms=total_waveforms,
+    model_a_failures=model_a_failures,
+    model_b_failures=model_b_failures,
   )
 
   print(f"[Interpretation] Alignment Strength: {synthesis.alignment.strength.value}")
@@ -909,7 +990,9 @@ def run_interpret(
 
   out_path = Path(report_out) if report_out else ctx.output_dir / "research-interpretation.md"
   out_path.parent.mkdir(parents=True, exist_ok=True)
-  md = generate_research_interpretation_markdown(synthesis)
+  md = generate_research_interpretation_markdown(
+    synthesis, data_mode="simulation" if ctx.simulate else "real"
+  )
   out_path.write_text(md, encoding="utf-8")
   print(f"[Interpretation] Report written to: {out_path}")
 
@@ -951,7 +1034,12 @@ def run_pipeline(ctx: CliContext, skip_figures: bool = False) -> int:
     generate_primary_figures(primary_result, output_dir=fig_dir)
 
   prim_path = ctx.output_dir / "primary-results.md"
-  prim_path.write_text(generate_primary_results_markdown(primary_result), encoding="utf-8")
+  prim_path.write_text(
+    generate_primary_results_markdown(
+      primary_result, data_mode="simulation" if ctx.simulate else "real"
+    ),
+    encoding="utf-8",
+  )
 
   test_df = unified_table.filter(pl.col("split") == "test")
   dev_df = unified_table.filter(pl.col("split") == "dev")
@@ -976,7 +1064,12 @@ def run_pipeline(ctx: CliContext, skip_figures: bool = False) -> int:
     seed=ctx.seed,
   )
   sens_path = ctx.output_dir / "sensitivity-analyses.md"
-  sens_path.write_text(generate_sensitivity_report_markdown(sens_result), encoding="utf-8")
+  sens_path.write_text(
+    generate_sensitivity_report_markdown(
+      sens_result, data_mode="simulation" if ctx.simulate else "real"
+    ),
+    encoding="utf-8",
+  )
 
   rc = run_interpret(ctx, primary_result=primary_result, sensitivity_result=sens_result)
   if rc != 0:

@@ -313,12 +313,30 @@ def test_cli_simulate_and_predictions_cache(
   assert manifest["data_mode"] == "simulation"
   assert manifest["predictions_artifact_sha256"] is not None
 
-  # Run analyze loading the cached predictions
-  rc_analyze = main([
+  # 1. Loading simulated predictions without --simulate or --allow-simulated-artifact must fail closed (rc == 1)
+  rc_fail_closed = main([
     "analyze",
     "--output-dir", str(out_dir),
     "--predictions-path", str(pred_file),
   ])
-  assert rc_analyze == 0
+  assert rc_fail_closed == 1
+
+  # 2. Loading with --allow-simulated-artifact succeeds
+  rc_allowed = main([
+    "analyze",
+    "--output-dir", str(out_dir),
+    "--predictions-path", str(pred_file),
+    "--allow-simulated-artifact",
+  ])
+  assert rc_allowed == 0
   assert (out_dir / "primary-results.md").exists()
+
+  # 3. Loading with --simulate succeeds
+  rc_sim = main([
+    "analyze",
+    "--output-dir", str(out_dir),
+    "--predictions-path", str(pred_file),
+    "--simulate",
+  ])
+  assert rc_sim == 0
 

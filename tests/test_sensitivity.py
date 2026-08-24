@@ -414,11 +414,15 @@ def test_full_sensitivity_analyses_orchestration_and_markdown(
   )
 
   assert isinstance(full_result, FullSensitivityAnalysisResult)
-  md = generate_sensitivity_report_markdown(full_result)
+  md = generate_sensitivity_report_markdown(full_result, data_mode="real")
   assert isinstance(md, str)
   assert "# Stage 10 Validation Report: Sensitivity and Robustness Analyses" in md
+  assert "> **Data Source:** REAL MIMIC-IV-ECG predictions" in md
   assert "Admission-Anchored Index ECG" in md
   assert "In-Hospital Mortality" in md
   assert "Elastic-Net" in md
   assert "CarDSLab ECG-CLIP" in md
   assert "Sex / Gender" in md
+
+  md_sim = generate_sensitivity_report_markdown(full_result, data_mode="simulation")
+  assert "> **Data Source:** SIMULATION — NOT EMPIRICAL RESULTS" in md_sim
