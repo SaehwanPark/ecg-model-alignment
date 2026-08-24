@@ -408,9 +408,12 @@ name = "ecg-model-alignment"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "matplotlib" },
     { name = "numpy" },
+    { name = "pillow" },
     { name = "polars" },
     { name = "pyarrow" },
+    { name = "scipy" },
     { name = "wfdb" },
 ]
 
@@ -422,9 +425,12 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "matplotlib", specifier = ">=3.11.1" },
     { name = "numpy", specifier = ">=2.5.2" },
+    { name = "pillow", specifier = ">=12.3.0" },
     { name = "polars", specifier = ">=1.44.0" },
     { name = "pyarrow", specifier = ">=25.0.1" },
+    { name = "scipy", specifier = ">=1.18.1" },
     { name = "wfdb", specifier = ">=4.3.1" },
 ]
 

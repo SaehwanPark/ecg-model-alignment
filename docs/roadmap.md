@@ -181,30 +181,30 @@ plus explicit metadata about preprocessing and failures.
 
 ### Checklist
 
-- [ ] Define immutable model configuration.
-- [ ] Define canonical lead order.
-- [ ] Define waveform units.
-- [ ] Define resampling policy.
-- [ ] Define padding/cropping policy.
-- [ ] Define deterministic ECG-image rendering for image models.
-- [ ] Define model-output schema.
-- [ ] Define batch inference interface.
-- [ ] Keep model loading outside pure transformation functions.
-- [ ] Add tests for lead order and shape validation.
-- [ ] Add tests for deterministic rendering.
-- [ ] Add tests for missing/duplicate lead failures.
-- [ ] Add smoke-test mode using a handful of ECGs.
+- [x] Define immutable model configuration.
+- [x] Define canonical lead order.
+- [x] Define waveform units.
+- [x] Define resampling policy.
+- [x] Define padding/cropping policy.
+- [x] Define deterministic ECG-image rendering for image models.
+- [x] Define model-output schema.
+- [x] Define batch inference interface.
+- [x] Keep model loading outside pure transformation functions.
+- [x] Add tests for lead order and shape validation.
+- [x] Add tests for deterministic rendering.
+- [x] Add tests for missing/duplicate lead failures.
+- [x] Add smoke-test mode using a handful of ECGs.
 
 ### Deliverables
 
-- [ ] `src/ecg_alignment/scoring/base.py`
-- [ ] `src/ecg_alignment/scoring/preprocess.py`
-- [ ] `tests/test_preprocess.py`
+- [x] `src/ecg_alignment/scoring/base.py`
+- [x] `src/ecg_alignment/scoring/preprocess.py`
+- [x] `tests/test_preprocess.py`
 
 ### Exit Criteria
 
-- [ ] Model-specific adapters can share the same downstream scoring pipeline.
-- [ ] Identical input produces identical preprocessing output.
+- [x] Model-specific adapters can share the same downstream scoring pipeline.
+- [x] Identical input produces identical preprocessing output.
 
 ## Stage 4 — CarDSLab ECG-CLIP Engineering Prototype
 
