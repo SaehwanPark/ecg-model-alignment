@@ -5,6 +5,61 @@ build/
 dist/
 wheels/
 *.egg-info
+*.egg
 
 # Virtual environments
-.venv
+.venv/
+env/
+venv/
+
+# Testing and type checking
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+
+# Protected data (MIMIC-IV, MIMIC-IV-ECG, raw waveforms and records)
+data/
+raw_data/
+mimic/
+mimiciv/
+mimic-iv/
+mimic-iv-ecg/
+*.hea
+*.dat
+*.xyz
+*.wfdb
+
+# Machine learning model caches and checkpoints
+checkpoints/
+models/
+*.pt
+*.pth
+*.bin
+*.onnx
+*.safetensors
+.cache/
+hf_cache/
+transformers_cache/
+
+# Credentials and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*token*
+!*tokenizer*
+credentials.json
+
+# Scratch and intermediate outputs
+scratch/
+tmp/
+reports/figures/
+reports/output/
+
+# Operating system & editor metadata
+.DS_Store
+Thumbs.db

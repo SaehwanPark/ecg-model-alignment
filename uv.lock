@@ -27,13 +27,17 @@ wheels = [
 name = "ecg-model-alignment"
 version = "0.1.0"
 source = { virtual = "." }
-dependencies = [
+
+[package.dev-dependencies]
+dev = [
     { name = "basedpyright" },
     { name = "pytest" },
 ]
 
 [package.metadata]
-requires-dist = [
+
+[package.metadata.requires-dev]
+dev = [
     { name = "basedpyright", specifier = ">=1.39.10" },
     { name = "pytest", specifier = ">=9.1.1" },
 ]

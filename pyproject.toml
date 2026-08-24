@@ -1,10 +1,23 @@
 [project]
 name = "ecg-model-alignment"
 version = "0.1.0"
-description = "Add your description here"
+description = "Traditional ECG risk models vs multimodal transformer representations"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = [
-    "basedpyright>=1.39.10",
-    "pytest>=9.1.1",
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "basedpyright>=1.39.10",
+  "pytest>=9.1.1",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra -q"
+
+[tool.basedpyright]
+include = ["src", "tests"]
+pythonVersion = "3.13"
+typeCheckingMode = "standard"
