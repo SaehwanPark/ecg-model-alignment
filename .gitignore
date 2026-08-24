@@ -62,6 +62,7 @@ artifacts/
 *.arrow
 *.feather
 run_manifest.json
+*.manifest.json
 reports/figures/
 reports/output/
 

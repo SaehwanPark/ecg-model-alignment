@@ -19,6 +19,7 @@ from ecg_alignment.analysis import (
   DiscordanceQuadrant,
   DiscordanceResult,
   GlobalAlignmentResult,
+  GlobalPerformanceResult,
   IncrementalInformationResult,
   NestedModelEvaluation,
   PerformanceComparisonResult,
@@ -210,7 +211,11 @@ def test_interpret_discordant_groups() -> None:
   assert summary.occult_risk_difference == 0.0413
   assert "Quadrant 2" in summary.occult_risk_narrative
   assert "Quadrant 3" in summary.pseudo_high_risk_narrative
-  assert "occult risk" in summary.quadrants[1].clinical_interpretation.lower()
+  assert "a-low / b-high" in summary.quadrants[1].clinical_interpretation.lower()
+  assert "A < 15.0" in summary.quadrants[1].description
+  assert "B >= 0.048" in summary.quadrants[1].description
+  assert "A >= 15.0" in summary.quadrants[2].description
+  assert "B < 0.048" in summary.quadrants[2].description
 
 
 # -----------------------------------------------------------------------------
@@ -220,15 +225,37 @@ def test_interpret_discordant_groups() -> None:
 
 def test_evaluate_clinical_utility_distinction() -> None:
   """Test the formal boundary separating statistical value from clinical utility."""
-  distinction = evaluate_clinical_utility_distinction()
-  assert isinstance(distinction, ClinicalUtilityDistinction)
-  assert distinction.lrt_stat > 300.0
-  assert distinction.delta_auroc > 0.08
-  assert "RESEARCH BOUNDARY" in distinction.formal_distinction_statement
-  assert "does NOT equate to clinical bedside utility" in distinction.clinical_utility_caveat
-  assert len(distinction.missing_elements_for_deployment) >= 4
-  assert any("Decision curve analysis" in s for s in distinction.missing_elements_for_deployment)
-  assert any("Prospective clinical trial" in s for s in distinction.missing_elements_for_deployment)
+  # 1. Default (no empirical input)
+  distinction_default = evaluate_clinical_utility_distinction()
+  assert isinstance(distinction_default, ClinicalUtilityDistinction)
+  assert distinction_default.lrt_stat == 0.0
+  assert "RESEARCH BOUNDARY" in distinction_default.formal_distinction_statement
+  assert "does NOT equate to clinical bedside utility" in distinction_default.clinical_utility_caveat
+  assert len(distinction_default.missing_elements_for_deployment) >= 4
+
+  # 2. With positive empirical inputs
+  dummy_inc = IncrementalInformationResult(
+    model_a_only=NestedModelEvaluation("Model A", "y ~ splines(A)", -120.0, 246.0, 252.0, 0.50, 0.70, 0.08),
+    model_b_only=NestedModelEvaluation("Model B", "y ~ B", -110.0, 224.0, 230.0, 0.45, 0.76, 0.07),
+    model_combined=NestedModelEvaluation("Model A + B", "y ~ splines(A) + B", -95.0, 198.0, 208.0, 0.40, 0.78, 0.06),
+    lrt_statistic=350.0,
+    lrt_degrees_of_freedom=1,
+    lrt_pvalue=1e-20,
+    auroc_improvement=BootstrapConfidenceInterval(0.08, 0.06, 0.10),
+    brier_improvement=BootstrapConfidenceInterval(0.02, 0.01, 0.03),
+    held_out_loss_reduction=0.10,
+    held_out_loss_reduction_ci=BootstrapConfidenceInterval(0.10, 0.08, 0.12),
+  )
+  dummy_comp = PerformanceComparisonResult(
+    delta_auroc=BootstrapConfidenceInterval(0.08, 0.06, 0.10),
+    delta_auprc=BootstrapConfidenceInterval(0.05, 0.03, 0.07),
+    delta_brier=BootstrapConfidenceInterval(0.02, 0.01, 0.03),
+    p_value_auroc_diff=1e-15,
+  )
+  distinction_emp = evaluate_clinical_utility_distinction(dummy_inc, dummy_comp)
+  assert distinction_emp.lrt_stat == 350.0
+  assert distinction_emp.delta_auroc == 0.08
+  assert "p < 10^-15" in distinction_emp.statistical_summary
 
 
 # -----------------------------------------------------------------------------
@@ -311,12 +338,54 @@ def test_build_analysis_registry() -> None:
 
 def test_synthesize_external_validation_recommendation() -> None:
   """Test external validation decision logic and cohort recommendations."""
-  rec = synthesize_external_validation_recommendation()
-  assert isinstance(rec, ExternalValidationRecommendation)
-  assert rec.status == ValidationRecommendationStatus.JUSTIFIED
-  assert len(rec.justification_points) >= 3
-  assert any("PTB-XL" in c for c in rec.recommended_cohorts)
-  assert any("Decision Curve Analysis" in d for d in rec.recommended_design_elements)
+  # 1. No input -> INCONCLUSIVE
+  rec_none = synthesize_external_validation_recommendation()
+  assert isinstance(rec_none, ExternalValidationRecommendation)
+  assert rec_none.status == ValidationRecommendationStatus.INCONCLUSIVE
+  assert len(rec_none.justification_points) >= 2
+
+  # 2. Positive empirical input -> JUSTIFIED
+  dummy_quadrants = (
+    DiscordanceQuadrant("Q1", "A-low / B-low", 100, 3, BootstrapConfidenceInterval(0.03, 0.01, 0.05)),
+    DiscordanceQuadrant("Q2", "A-low / B-high", 100, 10, BootstrapConfidenceInterval(0.10, 0.06, 0.14)),
+    DiscordanceQuadrant("Q3", "A-high / B-low", 100, 4, BootstrapConfidenceInterval(0.04, 0.02, 0.06)),
+    DiscordanceQuadrant("Q4", "A-high / B-high", 100, 12, BootstrapConfidenceInterval(0.12, 0.08, 0.16)),
+  )
+  dummy_disc = DiscordanceResult(
+    a_threshold=15.0,
+    b_threshold=0.05,
+    threshold_method="median",
+    quadrants=dummy_quadrants,
+    risk_diff_alow_bhigh_vs_alow_blow=BootstrapConfidenceInterval(0.07, 0.02, 0.12),
+    risk_ratio_alow_bhigh_vs_alow_blow=BootstrapConfidenceInterval(3.33, 1.50, 6.00),
+    risk_diff_ahigh_bhigh_vs_ahigh_blow=BootstrapConfidenceInterval(0.08, 0.03, 0.13),
+  )
+  dummy_primary = PrimaryAnalysisResult(
+    n_patients=400,
+    n_events=29,
+    event_rate=0.0725,
+    alignment=GlobalAlignmentResult(0.50, 1e-10, 0.48, 1e-9, (0.0,), (0.0,), (0.0,), (0.0,), ((0.0,),)),
+    stratified=StratifiedAnalysisResult((), overall_event_rate=0.0725),
+    discordance=dummy_disc,
+    incremental=IncrementalInformationResult(
+      model_a_only=NestedModelEvaluation("Model A", "y ~ splines(A)", -120.0, 246.0, 252.0, 0.50, 0.70, 0.08),
+      model_b_only=NestedModelEvaluation("Model B", "y ~ B", -110.0, 224.0, 230.0, 0.45, 0.76, 0.07),
+      model_combined=NestedModelEvaluation("Model A + B", "y ~ splines(A) + B", -95.0, 198.0, 208.0, 0.40, 0.78, 0.06),
+      lrt_statistic=50.0,
+      lrt_degrees_of_freedom=1,
+      lrt_pvalue=1e-12,
+      auroc_improvement=BootstrapConfidenceInterval(0.08, 0.04, 0.12),
+      brier_improvement=BootstrapConfidenceInterval(0.02, 0.01, 0.03),
+      held_out_loss_reduction=0.10,
+    ),
+    performance_a=GlobalPerformanceResult("Model A", 400, 29, 0.0725, BootstrapConfidenceInterval(0.70, 0.65, 0.75), BootstrapConfidenceInterval(0.20, 0.15, 0.25), BootstrapConfidenceInterval(0.08, 0.06, 0.10), None, 1.0, 0.0),
+    performance_b=GlobalPerformanceResult("Model B", 400, 29, 0.0725, BootstrapConfidenceInterval(0.78, 0.73, 0.83), BootstrapConfidenceInterval(0.25, 0.20, 0.30), BootstrapConfidenceInterval(0.06, 0.04, 0.08), None, 1.0, 0.0),
+    comparison=PerformanceComparisonResult(BootstrapConfidenceInterval(0.08, 0.04, 0.12), BootstrapConfidenceInterval(0.05, 0.01, 0.09), BootstrapConfidenceInterval(0.02, 0.01, 0.03), 1e-5),
+  )
+  rec_pos = synthesize_external_validation_recommendation(dummy_primary)
+  assert rec_pos.status == ValidationRecommendationStatus.JUSTIFIED
+  assert any("PTB-XL" in c for c in rec_pos.recommended_cohorts)
+  assert any("Decision Curve Analysis" in d for d in rec_pos.recommended_design_elements)
 
 
 # -----------------------------------------------------------------------------
@@ -371,3 +440,28 @@ def test_synthesize_research_interpretation_and_markdown() -> None:
   with pytest.raises(ValueError, match="requires a valid PrimaryAnalysisResult"):
     # pyright: ignore[reportArgumentType]
     synthesize_research_interpretation(primary_result=None)  # type: ignore
+
+
+def test_simulation_negative_control_outputs_no_false_affirmative_claims() -> None:
+  """Test negative-control property: simulated null data must not generate false affirmative claims."""
+  import polars as pl
+  from ecg_alignment.analysis import generate_primary_results_markdown, run_primary_analysis
+  from ecg_alignment.cli import simulate_cohort_predictions
+
+  cohort_df = pl.DataFrame({
+    "subject_id": list(range(200)),
+    "study_id": list(range(100, 300)),
+    "split": ["dev"] * 120 + ["val"] * 40 + ["test"] * 40,
+  })
+  unified_table, _ = simulate_cohort_predictions(cohort_df, seed=42)
+  primary_result = run_primary_analysis(unified_table, n_bootstraps=20, random_seed=42)
+  prim_md = generate_primary_results_markdown(primary_result, data_mode="simulation")
+
+  synthesis = synthesize_research_interpretation(primary_result=primary_result)
+  report_md = generate_research_interpretation_markdown(synthesis, data_mode="simulation")
+
+  # Assert no false affirmative claims
+  assert "H4 (Incremental Information): Confirmed" not in prim_md
+  assert "STRONGLY JUSTIFIED" not in report_md
+  assert "undeniable" not in report_md
+  assert "large effect size" not in report_md

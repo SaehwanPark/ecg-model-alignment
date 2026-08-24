@@ -340,3 +340,42 @@ def test_cli_simulate_and_predictions_cache(
   ])
   assert rc_sim == 0
 
+
+def test_cli_unmanifested_artifact_requires_flag(tmp_path: Path) -> None:
+  """Test that loading an unmanifested artifact in real mode fails without --allow-unverified-artifact."""
+  import polars as pl
+  from ecg_alignment.cli import simulate_cohort_predictions
+  from ecg_alignment.probe import save_unified_prediction_table
+
+  out_dir = tmp_path / "unmanifested_out"
+  out_dir.mkdir(parents=True)
+  pred_file = out_dir / "orphan_preds.parquet"
+
+  cohort_df = pl.DataFrame({
+    "subject_id": list(range(100)),
+    "study_id": list(range(100, 200)),
+    "split": ["dev"] * 60 + ["val"] * 20 + ["test"] * 20,
+  })
+  clean_df, _ = simulate_cohort_predictions(cohort_df, seed=42)
+  save_unified_prediction_table(clean_df, pred_file)
+
+  # 1. Real mode without manifest and without override flag fails (rc == 1)
+  rc_fail = main([
+    "analyze",
+    "--output-dir", str(out_dir),
+    "--predictions-path", str(pred_file),
+  ])
+  assert rc_fail == 1
+
+  # 2. Real mode with --allow-unverified-artifact succeeds (rc == 0)
+  rc_ok = main([
+    "analyze",
+    "--output-dir", str(out_dir),
+    "--predictions-path", str(pred_file),
+    "--allow-unverified-artifact",
+  ])
+  assert rc_ok == 0
+  report_content = (out_dir / "primary-results.md").read_text(encoding="utf-8")
+  assert "Data Source:" in report_content
+
+

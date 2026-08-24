@@ -47,12 +47,14 @@ from ecg_alignment.probe import (
   DEFAULT_PROBE_SEED,
   ProbeConfig,
   TrainedProbe,
+  VerifiedPredictionArtifact,
   build_unified_prediction_table,
   compute_prediction_summary_statistics,
   extract_transformer_embeddings,
   fit_logistic_probe,
   generate_continuous_predictions_markdown,
   generate_run_manifest,
+  load_and_verify_prediction_artifact,
   load_and_verify_unified_prediction_table,
   load_unified_prediction_table,
   save_run_manifest,
@@ -93,6 +95,7 @@ class CliContext:
   verbose: bool
   simulate: bool = False
   allow_simulated_artifact: bool = False
+  allow_unverified_artifact: bool = False
   predictions_path: Path | None = None
   checkpoint_path: Path | None = None
   checkpoint_interval: int = 5000
@@ -209,6 +212,12 @@ def build_parser() -> argparse.ArgumentParser:
     action="store_true",
     default=False,
     help="Permit loading a simulation-generated prediction artifact even when running in real mode",
+  )
+  common_flags.add_argument(
+    "--allow-unverified-artifact",
+    action="store_true",
+    default=False,
+    help="Permit loading an unmanifested prediction artifact in real mode without provenance verification",
   )
   common_flags.add_argument(
     "--device",
@@ -383,6 +392,7 @@ def create_cli_context(args: argparse.Namespace) -> CliContext:
   verbose = bool(getattr(args, "verbose", False))
   simulate = bool(getattr(args, "simulate", False))
   allow_simulated_artifact = bool(getattr(args, "allow_simulated_artifact", False))
+  allow_unverified_artifact = bool(getattr(args, "allow_unverified_artifact", False))
   pred_path_arg = getattr(args, "predictions_path", None)
   predictions_path = Path(pred_path_arg).expanduser().resolve() if pred_path_arg is not None else None
   ckpt_path_arg = getattr(args, "checkpoint_path", None)
@@ -401,6 +411,7 @@ def create_cli_context(args: argparse.Namespace) -> CliContext:
     verbose=verbose,
     simulate=simulate,
     allow_simulated_artifact=allow_simulated_artifact,
+    allow_unverified_artifact=allow_unverified_artifact,
     predictions_path=predictions_path,
     checkpoint_path=checkpoint_path,
     checkpoint_interval=checkpoint_interval,
@@ -669,16 +680,19 @@ def run_probe(
     if ctx.verbose:
       print(f"Loading cached predictions from {ctx.predictions_path}...")
     try:
-      unified_table = load_and_verify_unified_prediction_table(
+      artifact = load_and_verify_prediction_artifact(
         ctx.predictions_path,
         requested_mode="simulation" if ctx.simulate else "real",
         allow_simulated_artifact=ctx.allow_simulated_artifact,
+        allow_unverified_artifact=ctx.allow_unverified_artifact,
       )
+      unified_table = artifact.dataframe
+      data_mode = artifact.data_mode
       stats = compute_prediction_summary_statistics(unified_table)
       out_path = Path(report_out) if report_out else ctx.output_dir / "continuous-predictions.md"
       out_path.parent.mkdir(parents=True, exist_ok=True)
       md = generate_continuous_predictions_markdown(
-        stats, data_mode="simulation" if ctx.simulate else "real"
+        stats, data_mode=data_mode
       )
       out_path.write_text(md, encoding="utf-8")
       print(f"[Probe] Report written to: {out_path}")
@@ -757,6 +771,12 @@ def run_probe(
     predictions_path=save_target if save_target.exists() else None,
   )
   save_run_manifest(manifest, ctx.output_dir / "run_manifest.json")
+  if save_target.exists():
+    sidecar_path = save_target.parent / f"{save_target.name}.manifest.json"
+    try:
+      save_run_manifest(manifest, sidecar_path)
+    except Exception:
+      pass
 
   stats = compute_prediction_summary_statistics(unified_table)
   print(f"[Probe] Best regularization C: {probe.best_c}")
@@ -771,22 +791,26 @@ def run_probe(
   return 0
 
 
-def _get_unified_table(ctx: CliContext) -> pl.DataFrame:
-  """Retrieve unified prediction table from cache or derive it."""
+def _get_unified_table(ctx: CliContext) -> tuple[pl.DataFrame, str]:
+  """Retrieve unified prediction table and its actual data_mode from cache or derive it."""
   requested_mode = "simulation" if ctx.simulate else "real"
   if ctx.predictions_path is not None and ctx.predictions_path.exists():
-    return load_and_verify_unified_prediction_table(
+    artifact = load_and_verify_prediction_artifact(
       ctx.predictions_path,
       requested_mode=requested_mode,
       allow_simulated_artifact=ctx.allow_simulated_artifact,
+      allow_unverified_artifact=ctx.allow_unverified_artifact,
     )
+    return artifact.dataframe, str(artifact.data_mode)
   default_cache = ctx.output_dir / "predictions.parquet"
   if default_cache.exists():
-    return load_and_verify_unified_prediction_table(
+    artifact = load_and_verify_prediction_artifact(
       default_cache,
       requested_mode=requested_mode,
       allow_simulated_artifact=ctx.allow_simulated_artifact,
+      allow_unverified_artifact=ctx.allow_unverified_artifact,
     )
+    return artifact.dataframe, str(artifact.data_mode)
 
   paths = DataPaths(mimic_iv_dir=ctx.mimic_root, mimic_iv_ecg_dir=ctx.ecg_root)
   record_df, patients_df, admissions_df = load_dataset_tables(paths)
@@ -803,6 +827,7 @@ def _get_unified_table(ctx: CliContext) -> pl.DataFrame:
   has_waveforms = check_waveforms_available(split_res.cohort_df, ctx.ecg_root)
   if ctx.simulate:
     unified_table, _ = simulate_cohort_predictions(split_res.cohort_df, seed=ctx.seed)
+    return unified_table, "simulation"
   else:
     if not has_waveforms:
       raise FileNotFoundError(
@@ -817,7 +842,7 @@ def _get_unified_table(ctx: CliContext) -> pl.DataFrame:
       batch_size=ctx.batch_size,
       verbose=ctx.verbose,
     )
-  return unified_table
+    return unified_table, "real"
 
 
 def run_analyze(
@@ -830,7 +855,7 @@ def run_analyze(
     print("Running primary statistical analysis on test cohort...")
 
   try:
-    unified_table = _get_unified_table(ctx)
+    unified_table, data_mode = _get_unified_table(ctx)
   except FileNotFoundError as exc:
     print(f"Data file error: {exc}", file=sys.stderr)
     return 1
@@ -859,7 +884,7 @@ def run_analyze(
   out_path = Path(report_out) if report_out else ctx.output_dir / "primary-results.md"
   out_path.parent.mkdir(parents=True, exist_ok=True)
   md = generate_primary_results_markdown(
-    primary_result, data_mode="simulation" if ctx.simulate else "real"
+    primary_result, data_mode=data_mode
   )
   out_path.write_text(md, encoding="utf-8")
   print(f"[Analysis] Report written to: {out_path}")
@@ -873,7 +898,7 @@ def run_sensitivity(ctx: CliContext, report_out: str | None = None) -> int:
     print("Running comprehensive sensitivity and robustness analyses...")
 
   try:
-    unified_table = _get_unified_table(ctx)
+    unified_table, data_mode = _get_unified_table(ctx)
   except FileNotFoundError as exc:
     print(f"Data file error: {exc}", file=sys.stderr)
     return 1
@@ -912,7 +937,7 @@ def run_sensitivity(ctx: CliContext, report_out: str | None = None) -> int:
   out_path = Path(report_out) if report_out else ctx.output_dir / "sensitivity-analyses.md"
   out_path.parent.mkdir(parents=True, exist_ok=True)
   md = generate_sensitivity_report_markdown(
-    sens_result, data_mode="simulation" if ctx.simulate else "real"
+    sens_result, data_mode=data_mode
   )
   out_path.write_text(md, encoding="utf-8")
   print(f"[Sensitivity] Report written to: {out_path}")
@@ -931,8 +956,9 @@ def run_interpret(
     print("Synthesizing research interpretation and scientific translation roadmap...")
 
   unified_table: pl.DataFrame | None = None
+  data_mode: str = "simulation" if ctx.simulate else "real"
   try:
-    unified_table = _get_unified_table(ctx)
+    unified_table, data_mode = _get_unified_table(ctx)
   except Exception:
     unified_table = None
 
@@ -991,7 +1017,7 @@ def run_interpret(
   out_path = Path(report_out) if report_out else ctx.output_dir / "research-interpretation.md"
   out_path.parent.mkdir(parents=True, exist_ok=True)
   md = generate_research_interpretation_markdown(
-    synthesis, data_mode="simulation" if ctx.simulate else "real"
+    synthesis, data_mode=data_mode
   )
   out_path.write_text(md, encoding="utf-8")
   print(f"[Interpretation] Report written to: {out_path}")
@@ -1017,7 +1043,7 @@ def run_pipeline(ctx: CliContext, skip_figures: bool = False) -> int:
     return rc
 
   try:
-    unified_table = _get_unified_table(ctx)
+    unified_table, data_mode = _get_unified_table(ctx)
   except Exception as exc:
     print(f"Pipeline error retrieving prediction table: {exc}", file=sys.stderr)
     return 1
@@ -1036,7 +1062,7 @@ def run_pipeline(ctx: CliContext, skip_figures: bool = False) -> int:
   prim_path = ctx.output_dir / "primary-results.md"
   prim_path.write_text(
     generate_primary_results_markdown(
-      primary_result, data_mode="simulation" if ctx.simulate else "real"
+      primary_result, data_mode=data_mode
     ),
     encoding="utf-8",
   )
@@ -1066,7 +1092,7 @@ def run_pipeline(ctx: CliContext, skip_figures: bool = False) -> int:
   sens_path = ctx.output_dir / "sensitivity-analyses.md"
   sens_path.write_text(
     generate_sensitivity_report_markdown(
-      sens_result, data_mode="simulation" if ctx.simulate else "real"
+      sens_result, data_mode=data_mode
     ),
     encoding="utf-8",
   )

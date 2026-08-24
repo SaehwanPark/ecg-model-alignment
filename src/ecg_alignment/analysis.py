@@ -1498,6 +1498,114 @@ def generate_primary_results_markdown(
     if str(data_mode).lower() == "real"
     else "> **Data Source:** SIMULATION — NOT EMPIRICAL RESULTS"
   )
+  # H1 Evaluation: Partial Alignment (Spearman rho in [0.30, 0.70))
+  abs_rho = abs(result.alignment.spearman_rho)
+  if 0.30 <= abs_rho < 0.70:
+    h1_verdict = (
+      f"1. **H1 (Partial Alignment):** Confirmed. Spearman rank correlation "
+      f"$\\rho = {result.alignment.spearman_rho:.3f}$ ($p = {result.alignment.spearman_pvalue:.2e}$) "
+      "indicates moderate shared electrophysiologic signal between traditional Model `A` (CIIS) and transformer Model `B` (D-BETA probe)."
+    )
+  elif abs_rho < 0.30:
+    h1_verdict = (
+      f"1. **H1 (Partial Alignment):** Not Confirmed (Weak Alignment). Spearman rank correlation "
+      f"$\\rho = {result.alignment.spearman_rho:.3f}$ ($p = {result.alignment.spearman_pvalue:.2e}$) "
+      "indicates weak alignment (|rho| < 0.30), demonstrating largely orthogonal representations rather than partial alignment."
+    )
+  else:
+    h1_verdict = (
+      f"1. **H1 (Partial Alignment):** Not Confirmed (Strong Alignment). Spearman rank correlation "
+      f"$\\rho = {result.alignment.spearman_rho:.3f}$ ($p = {result.alignment.spearman_pvalue:.2e}$) "
+      "indicates strong alignment (|rho| >= 0.70), demonstrating high redundancy rather than complementary partial alignment."
+    )
+
+  # H2 Evaluation: Within-Stratum Residual Risk Gradients
+  meaningful_cats = 0
+  total_eval_cats = 0
+  ratios: list[float] = []
+  for cat in result.stratified.categories:
+    if cat.n_total > 0 and len(cat.b_quantiles) >= 2:
+      total_eval_cats += 1
+      t1_r = cat.b_quantiles[0].event_rate
+      t3_r = cat.b_quantiles[-1].event_rate
+      gr = (t3_r / t1_r) if t1_r > 0 else 1.0
+      ratios.append(gr)
+      if gr >= 1.50:
+        meaningful_cats += 1
+
+  mean_gr = sum(ratios) / len(ratios) if ratios else 1.0
+  if total_eval_cats > 0 and meaningful_cats == total_eval_cats:
+    h2_verdict = (
+      f"2. **H2 (Residual Risk Gradients):** Confirmed. Within fixed traditional risk categories, "
+      f"Model `B` identifies meaningful within-stratum mortality gradients across tertiles (mean gradient ratio {mean_gr:.2f}x)."
+    )
+  elif meaningful_cats > 0:
+    h2_verdict = (
+      f"2. **H2 (Residual Risk Gradients):** Partially Confirmed. Within fixed traditional risk categories, "
+      f"Model `B` identifies meaningful within-stratum mortality gradients in {meaningful_cats} of {total_eval_cats} categories (mean gradient ratio {mean_gr:.2f}x)."
+    )
+  else:
+    h2_verdict = (
+      f"2. **H2 (Residual Risk Gradients):** Not Confirmed. Within fixed traditional risk categories, "
+      f"Model `B` did not identify consistent residual risk gradients meeting the prespecified 1.50x threshold across tertiles (mean gradient ratio {mean_gr:.2f}x)."
+    )
+
+  # H3 Evaluation: Discordance Contrasts
+  rd_ci = result.discordance.risk_diff_alow_bhigh_vs_alow_blow
+  rr_ci = result.discordance.risk_ratio_alow_bhigh_vs_alow_blow
+  if rd_ci.ci_lower > 0 and rr_ci.ci_lower > 1.0:
+    h3_verdict = (
+      f"3. **H3 (Clinically Informative Discordance):** Confirmed. Patients in the discordant `A-low / B-high` group "
+      f"experience significantly higher mortality than those in `A-low / B-low` "
+      f"(Risk Difference: {rd_ci.formatted(4)}, Relative Risk: {rr_ci.formatted(2)}x)."
+    )
+  elif rd_ci.ci_lower <= 0 <= rd_ci.ci_upper:
+    h3_verdict = (
+      f"3. **H3 (Clinically Informative Discordance):** Not Confirmed (Null/Inconclusive). Mortality in the discordant `A-low / B-high` group "
+      f"was not significantly different from `A-low / B-low` "
+      f"(Risk Difference: {rd_ci.formatted(4)}, Relative Risk: {rr_ci.formatted(2)}x)."
+    )
+  else:
+    h3_verdict = (
+      f"3. **H3 (Clinically Informative Discordance):** Not Confirmed (Reversed). Mortality in the discordant `A-low / B-high` group "
+      f"was lower than in `A-low / B-low` "
+      f"(Risk Difference: {rd_ci.formatted(4)}, Relative Risk: {rr_ci.formatted(2)}x)."
+    )
+
+  # H4 Evaluation: Incremental Information (Held-out Test Governs)
+  inc_auc_ci = result.incremental.auroc_improvement
+  lrt_p = result.incremental.lrt_pvalue
+  lrt_stat = result.incremental.lrt_statistic
+  if inc_auc_ci.ci_lower > 0 and lrt_p < 0.05:
+    h4_verdict = (
+      f"4. **H4 (Incremental Information):** Confirmed. In nested modeling and held-out evaluation, "
+      f"Model `B` provides statistically significant incremental prognostic information beyond $f(A)$ "
+      f"(Held-out $\\Delta\\text{{AUROC}} = {inc_auc_ci.formatted(4)}$, Descriptive LRT statistic $\\Delta G^2 = {lrt_stat:.2f}$, $p = {lrt_p:.2e}$)."
+    )
+  else:
+    h4_verdict = (
+      f"4. **H4 (Incremental Information):** Not Confirmed (Null/Inconclusive). Model `B` did not provide statistically "
+      f"significant incremental prognostic information beyond $f(A)$ on the held-out test partition "
+      f"(Held-out $\\Delta\\text{{AUROC}} = {inc_auc_ci.formatted(4)}$, Descriptive LRT statistic $\\Delta G^2 = {lrt_stat:.2f}$, $p = {lrt_p:.2e}$)."
+    )
+
+  delta_brier_pt = result.comparison.delta_brier.point_estimate
+  if delta_brier_pt > 0:
+    brier_note = "(improvement A − B)"
+  elif delta_brier_pt < 0:
+    brier_note = "(deterioration A − B)"
+  else:
+    brier_note = "(no change)"
+
+  brier_inc_pt = result.incremental.brier_improvement.point_estimate
+  brier_inc_note = "(improvement)" if brier_inc_pt > 0 else "(deterioration)" if brier_inc_pt < 0 else "(no change)"
+
+  loss_red_pt = result.incremental.held_out_loss_reduction
+  loss_red_note = "(reduction/improvement)" if loss_red_pt > 0 else "(increase/deterioration)" if loss_red_pt < 0 else "(no change)"
+  if result.incremental.held_out_loss_reduction_ci is not None:
+    loss_red_str = f"**{loss_red_pt:+.4f}** ({result.incremental.held_out_loss_reduction_ci.ci_lower:.4f}–{result.incremental.held_out_loss_reduction_ci.ci_upper:.4f}) {loss_red_note}"
+  else:
+    loss_red_str = f"`{loss_red_pt:+.4f}` {loss_red_note}"
 
   lines = [
     f"# {title}",
@@ -1515,10 +1623,10 @@ def generate_primary_results_markdown(
     "",
     "This report provides the empirical evaluation of the core scientific questions in the untouched final test partition:",
     "",
-    f"1. **H1 (Partial Alignment):** Confirmed. Spearman rank correlation $\\rho = {result.alignment.spearman_rho:.3f}$ ($p = {result.alignment.spearman_pvalue:.2e}$) indicates moderate shared electrophysiologic signal between traditional Model `A` (CIIS) and transformer Model `B` (D-BETA probe).",
-    f"2. **H2 (Residual Risk Gradients):** Confirmed. Within fixed traditional risk categories, Model `B` identifies meaningful within-stratum mortality gradients across tertiles.",
-    f"3. **H3 (Clinically Informative Discordance):** Confirmed. Patients in the discordant `A-low / B-high` group experience significantly higher mortality than those in `A-low / B-low` (Risk Difference: {result.discordance.risk_diff_alow_bhigh_vs_alow_blow.formatted(4)}, Relative Risk: {result.discordance.risk_ratio_alow_bhigh_vs_alow_blow.formatted(2)}).",
-    f"4. **H4 (Incremental Information):** Confirmed. In nested likelihood modeling, adding Model `B` to $f(A)$ provides significant incremental prognostic information (Likelihood Ratio Test statistic $\\Delta G^2 = {result.incremental.lrt_statistic:.2f}$, $p = {result.incremental.lrt_pvalue:.2e}$, $\\Delta\\text{{AUROC}} = {result.incremental.auroc_improvement.formatted(4)}$).",
+    h1_verdict,
+    h2_verdict,
+    h3_verdict,
+    h4_verdict,
     "",
     "---",
     "",
@@ -1540,11 +1648,11 @@ def generate_primary_results_markdown(
     "",
     "## 3. Global Discriminative & Calibration Performance (Final Test Partition)",
     "",
-    "| Metric | Model A (Traditional CIIS) | Model B (D-BETA Linear Probe) | Difference (Model B − Model A) | $p$-value |",
+    "| Metric | Model A (Traditional CIIS) | Model B (D-BETA Linear Probe) | Difference / Improvement | $p$-value |",
     "| :--- | :--- | :--- | :--- | :--- |",
-    f"| **AUROC** | {result.performance_a.auroc.formatted(4)} | {result.performance_b.auroc.formatted(4)} | **{result.comparison.delta_auroc.formatted(4)}** | `{result.comparison.p_value_auroc_diff:.4f}` |",
-    f"| **AUPRC** | {result.performance_a.auprc.formatted(4)} | {result.performance_b.auprc.formatted(4)} | **{result.comparison.delta_auprc.formatted(4)}** | — |",
-    f"| **Brier Score** | {result.performance_a.brier_score.formatted(4)} | {result.performance_b.brier_score.formatted(4)} | **{result.comparison.delta_brier.formatted(4)}** (improvement) | — |",
+    f"| **AUROC** | {result.performance_a.auroc.formatted(4)} | {result.performance_b.auroc.formatted(4)} | **{result.comparison.delta_auroc.formatted(4)}** (B − A) | `{result.comparison.p_value_auroc_diff:.4f}` |",
+    f"| **AUPRC** | {result.performance_a.auprc.formatted(4)} | {result.performance_b.auprc.formatted(4)} | **{result.comparison.delta_auprc.formatted(4)}** (B − A) | — |",
+    f"| **Brier Score** | {result.performance_a.brier_score.formatted(4)} | {result.performance_b.brier_score.formatted(4)} | **{result.comparison.delta_brier.formatted(4)}** {brier_note} | — |",
     f"| **Calibration Slope** | {result.performance_a.calibration_slope:.3f} | {result.performance_b.calibration_slope:.3f} | — | — |",
     f"| **Calibration Intercept** | {result.performance_a.calibration_intercept:.3f} | {result.performance_b.calibration_intercept:.3f} | — | — |",
     "",
@@ -1627,8 +1735,8 @@ def generate_primary_results_markdown(
     "### Incremental Test of Adding Model B to Model A",
     "",
     f"- **Held-out AUROC Improvement ($\\Delta\\text{{AUROC}}$):** **{result.incremental.auroc_improvement.formatted(4)}**",
-    f"- **Held-out Brier Score Improvement ($\\Delta\\text{{Brier}}$):** **{result.incremental.brier_improvement.formatted(4)}**",
-    f"- **Held-out Log-Loss Reduction ($\\Delta\\text{{Log-Loss}}$):** {f'**+{result.incremental.held_out_loss_reduction:.4f}** ({result.incremental.held_out_loss_reduction_ci.ci_lower:.4f}–{result.incremental.held_out_loss_reduction_ci.ci_upper:.4f})' if result.incremental.held_out_loss_reduction_ci is not None else f'`{result.incremental.held_out_loss_reduction:.4f}`'}",
+    f"- **Held-out Brier Score Improvement ($\\Delta\\text{{Brier}}$):** **{result.incremental.brier_improvement.formatted(4)}** {brier_inc_note}",
+    f"- **Held-out Log-Loss Reduction ($\\Delta\\text{{Log-Loss}}$):** {loss_red_str}",
     f"- **Descriptive Development LRT Statistic ($\\Delta G^2$):** `{result.incremental.lrt_statistic:.2f}` ($df={result.incremental.lrt_degrees_of_freedom}$, $p = {result.incremental.lrt_pvalue:.2e}$)",
     "",
     "> [!NOTE]",

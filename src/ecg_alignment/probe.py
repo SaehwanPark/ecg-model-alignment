@@ -1146,6 +1146,17 @@ def load_unified_prediction_table(
   return df
 
 
+@dataclass(frozen=True)
+class VerifiedPredictionArtifact:
+  """Container for a verified prediction table artifact with provenance metadata."""
+
+  dataframe: pl.DataFrame
+  data_mode: Literal["real", "simulation"] | str
+  manifest_path: Path | None = None
+  manifest_data: dict[str, Any] | None = None
+  sha256: str | None = None
+
+
 def find_companion_manifest(artifact_path: Path | str) -> Path | None:
   """Search for a companion run manifest associated with a prediction table artifact."""
   p = Path(artifact_path).expanduser().resolve()
@@ -1160,30 +1171,34 @@ def find_companion_manifest(artifact_path: Path | str) -> Path | None:
   return None
 
 
-def load_and_verify_unified_prediction_table(
+def load_and_verify_prediction_artifact(
   path: Path | str,
   requested_mode: Literal["real", "simulation"] | None = None,
   allow_simulated_artifact: bool = False,
+  allow_unverified_artifact: bool = False,
   verify_checksum: bool = True,
-) -> pl.DataFrame:
+) -> VerifiedPredictionArtifact:
   """Load a unified prediction table artifact with fail-closed provenance verification.
 
   Enforces:
     1. Prediction table exists and schema is valid.
-    2. If a companion manifest exists, checks data_mode compatibility. A simulated
+    2. If companion manifest is missing in 'real' mode, fails closed unless
+       `allow_unverified_artifact` is True.
+    3. If companion manifest exists, checks data_mode compatibility. A simulated
        prediction table cannot be loaded in 'real' execution mode unless
        `allow_simulated_artifact` is explicitly set to True.
-    3. If `predictions_artifact_sha256` is recorded in the companion manifest and
+    4. If `predictions_artifact_sha256` is recorded in the companion manifest and
        `verify_checksum` is True, verifies that the artifact file SHA-256 matches.
 
   Args:
     path: Path to the prediction artifact file (parquet, csv, ipc).
     requested_mode: Execution mode ('real' or 'simulation').
     allow_simulated_artifact: If True, permit simulated artifacts in real mode.
+    allow_unverified_artifact: If True, permit unmanifested artifacts in real mode.
     verify_checksum: If True, verify SHA-256 matches manifest if recorded.
 
   Returns:
-    Verified Polars DataFrame.
+    VerifiedPredictionArtifact containing the DataFrame, actual data_mode, and metadata.
 
   Raises:
     FileNotFoundError: If the prediction table does not exist.
@@ -1194,38 +1209,81 @@ def load_and_verify_unified_prediction_table(
     raise FileNotFoundError(f"Prediction table not found at: {p}")
 
   manifest_path = find_companion_manifest(p)
-  if manifest_path is not None:
+  manifest_data: dict[str, Any] | None = None
+  actual_mode: str = "simulation" if requested_mode == "simulation" else "real"
+  actual_sha = compute_file_sha256(p)
+
+  if manifest_path is None:
+    if requested_mode == "real" and not allow_unverified_artifact:
+      raise ValueError(
+        f"Prediction artifact at '{p}' has no companion manifest to verify data provenance in 'real' mode. "
+        "Real execution requires verified empirical predictions with a companion manifest. "
+        "Pass --allow-unverified-artifact to bypass if unverified loading is explicitly intended."
+      )
+  else:
     try:
       with open(manifest_path, "r", encoding="utf-8") as f:
-        manifest_data = json.load(f)
+        loaded_json = json.load(f)
+      if isinstance(loaded_json, dict):
+        manifest_data = loaded_json
 
-      artifact_mode = manifest_data.get("data_mode")
-      if (
-        requested_mode == "real"
-        and artifact_mode == "simulation"
-        and not allow_simulated_artifact
-      ):
-        raise ValueError(
-          f"Prediction artifact at '{p}' was generated in 'simulation' mode (recorded in {manifest_path.name}), "
-          "but execution was requested in 'real' mode. Real execution requires genuine empirical predictions. "
-          "Pass --simulate or --allow-simulated-artifact if simulated evaluation is intended."
-        )
+        recorded_mode = manifest_data.get("data_mode")
+        if recorded_mode in ("real", "simulation"):
+          actual_mode = recorded_mode
 
-      if verify_checksum:
-        recorded_sha = manifest_data.get("predictions_artifact_sha256")
-        if recorded_sha is not None:
-          actual_sha = compute_file_sha256(p)
-          if actual_sha != recorded_sha:
-            raise ValueError(
-              f"Prediction artifact integrity error: SHA-256 mismatch for '{p}'. "
-              f"Manifest records {recorded_sha}, but file has {actual_sha}."
-            )
+        if (
+          requested_mode == "real"
+          and recorded_mode == "simulation"
+          and not allow_simulated_artifact
+        ):
+          raise ValueError(
+            f"Prediction artifact at '{p}' was generated in 'simulation' mode (recorded in {manifest_path.name}), "
+            "but execution was requested in 'real' mode. Real execution requires genuine empirical predictions. "
+            "Pass --simulate or --allow-simulated-artifact if simulated evaluation is intended."
+          )
+
+        if verify_checksum:
+          recorded_sha = manifest_data.get("predictions_artifact_sha256")
+          if recorded_sha is not None:
+            if actual_sha != recorded_sha:
+              raise ValueError(
+                f"Prediction artifact integrity error: SHA-256 mismatch for '{p}'. "
+                f"Manifest records {recorded_sha}, but file has {actual_sha}."
+              )
     except (ValueError, FileNotFoundError):
       raise
     except Exception:
       pass
 
-  return load_unified_prediction_table(p)
+  df = load_unified_prediction_table(p)
+  return VerifiedPredictionArtifact(
+    dataframe=df,
+    data_mode=actual_mode,
+    manifest_path=manifest_path,
+    manifest_data=manifest_data,
+    sha256=actual_sha,
+  )
+
+
+def load_and_verify_unified_prediction_table(
+  path: Path | str,
+  requested_mode: Literal["real", "simulation"] | None = None,
+  allow_simulated_artifact: bool = False,
+  allow_unverified_artifact: bool = False,
+  verify_checksum: bool = True,
+) -> pl.DataFrame:
+  """Load a unified prediction table artifact with fail-closed provenance verification.
+
+  Convenience wrapper around load_and_verify_prediction_artifact returning only the DataFrame.
+  """
+  artifact = load_and_verify_prediction_artifact(
+    path=path,
+    requested_mode=requested_mode,
+    allow_simulated_artifact=allow_simulated_artifact,
+    allow_unverified_artifact=allow_unverified_artifact,
+    verify_checksum=verify_checksum,
+  )
+  return artifact.dataframe
 
 
 def get_current_git_sha() -> str | None:
