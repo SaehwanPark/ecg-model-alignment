@@ -121,32 +121,32 @@ Cardiac Infarction/Injury Score (CIIS).
 
 ### Checklist
 
-- [ ] Retrieve and document the authoritative CIIS formula.
-- [ ] Enumerate every required ECG measurement.
-- [ ] Determine which measurements can be obtained from existing MIMIC machine measurements.
-- [ ] Identify measurements that must be derived from the waveform.
-- [ ] Select or implement a deterministic delineation/measurement strategy.
-- [ ] Keep machine-generated diagnostic interpretation text out of `A`.
-- [ ] Implement one pure function per logically independent measurement.
-- [ ] Implement the final score as a pure composition of measurements.
-- [ ] Preserve the continuous score.
-- [ ] Implement published CIIS risk categories separately from score computation.
-- [ ] Create fixture ECGs or synthetic measurement fixtures with known expected values.
-- [ ] Test boundary conditions at every published category threshold.
-- [ ] Quantify score-computation failure rate on a sample of MIMIC ECGs.
-- [ ] Review implausible score tails manually.
+- [x] Retrieve and document the authoritative CIIS formula.
+- [x] Enumerate every required ECG measurement.
+- [x] Determine which measurements can be obtained from existing MIMIC machine measurements.
+- [x] Identify measurements that must be derived from the waveform.
+- [x] Select or implement a deterministic delineation/measurement strategy.
+- [x] Keep machine-generated diagnostic interpretation text out of `A`.
+- [x] Implement one pure function per logically independent measurement.
+- [x] Implement the final score as a pure composition of measurements.
+- [x] Preserve the continuous score.
+- [x] Implement published CIIS risk categories separately from score computation.
+- [x] Create fixture ECGs or synthetic measurement fixtures with known expected values.
+- [x] Test boundary conditions at every published category threshold.
+- [x] Quantify score-computation failure rate on a sample of MIMIC ECGs.
+- [x] Review implausible score tails manually.
 
 ### Deliverables
 
-- [ ] `src/ecg_alignment/scoring/traditional.py`
-- [ ] `tests/test_traditional_scoring.py`
-- [ ] `reports/traditional-score-validation.md`
+- [x] `src/ecg_alignment/scoring/traditional.py`
+- [x] `tests/test_traditional_scoring.py`
+- [x] `reports/traditional-score-validation.md`
 
 ### Exit Criteria
 
-- [ ] CIIS can be computed reproducibly for a substantial fraction of eligible ECGs.
-- [ ] Category boundaries are covered by tests.
-- [ ] Technical failures are explicit rather than silently imputed.
+- [x] CIIS can be computed reproducibly for a substantial fraction of eligible ECGs.
+- [x] Category boundaries are covered by tests.
+- [x] Technical failures are explicit rather than silently imputed.
 
 ### Stop/Go Gate
 
