@@ -49,8 +49,11 @@ from ecg_alignment.scoring.traditional import (
   LeadFeatures,
   classify_ciis_category,
   compute_ciis_from_measurements,
+  compute_cornell_voltage,
+  compute_sokolow_lyon_voltage,
   extract_lead_features,
   score_ecg_waveform,
+  score_simplified_ischemic_ecg,
 )
 
 __all__ = [
@@ -94,7 +97,11 @@ __all__ = [
   "LeadFeatures",
   "classify_ciis_category",
   "compute_ciis_from_measurements",
+  "compute_cornell_voltage",
+  "compute_sokolow_lyon_voltage",
   "extract_lead_features",
   "score_ecg_waveform",
+  "score_simplified_ischemic_ecg",
 ]
+
 

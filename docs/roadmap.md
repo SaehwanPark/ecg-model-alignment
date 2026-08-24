@@ -481,22 +481,28 @@ Answer alignment, residual-risk, discordance, and incremental-information questi
 
 ### Checklist
 
-- [ ] Earliest eligible ECG vs admission-anchored ECG.
-- [ ] In-hospital mortality.
-- [ ] 90-day mortality.
-- [ ] 1-year mortality if follow-up is supportable.
-- [ ] Alternative regularization strength within the prespecified validation procedure.
-- [ ] Alternative simple probe such as elastic-net logistic regression.
-- [ ] Exclusion of low-quality waveforms.
-- [ ] Alternative traditional score implementation if justified.
-- [ ] CarDSLab embedding analysis as an engineering/secondary comparator.
-- [ ] PULSE secondary analysis if technically worthwhile.
-- [ ] Optional demographic subgroup evaluation using demographics only as evaluation strata.
+- [x] Earliest eligible ECG vs admission-anchored ECG.
+- [x] In-hospital mortality.
+- [x] 90-day mortality.
+- [x] 1-year mortality if follow-up is supportable.
+- [x] Alternative regularization strength within the prespecified validation procedure.
+- [x] Alternative simple probe such as elastic-net logistic regression.
+- [x] Exclusion of low-quality waveforms.
+- [x] Alternative traditional score implementation if justified.
+- [x] CarDSLab embedding analysis as an engineering/secondary comparator.
+- [x] PULSE secondary analysis if technically worthwhile.
+- [x] Optional demographic subgroup evaluation using demographics only as evaluation strata.
+
+### Deliverables
+
+- [x] `src/ecg_alignment/sensitivity.py`
+- [x] `tests/test_sensitivity.py`
+- [x] `reports/sensitivity-analyses.md`
 
 ### Exit Criteria
 
-- [ ] Primary conclusions are clearly separated from sensitivity findings.
-- [ ] Any material conclusion change is documented.
+- [x] Primary conclusions are clearly separated from sensitivity findings.
+- [x] Any material conclusion change is documented.
 
 ## Stage 11 — Research Interpretation
 
