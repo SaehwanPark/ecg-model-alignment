@@ -19,4 +19,5 @@ This directory stores reproducible research reports, aggregate inventories, mode
 - `reports/continuous-predictions.md`: Stage 8 continuous prediction pipeline and linear probe.
 - `reports/primary-results.md`: Stage 9 primary statistical analysis (alignment, performance, stratified risk, discordance, incremental information).
 - `reports/sensitivity-analyses.md`: Stage 10 sensitivity and robustness analyses (cohort index anchoring, alternative horizons, probe variants, quality filtering, alternative traditional models, secondary transformer architectures, demographic subgroups).
+- `reports/research-interpretation.md`: Stage 11 comprehensive research interpretation, translation boundaries, pretraining contamination audit, technical failure catalog, and external validation roadmap.
 

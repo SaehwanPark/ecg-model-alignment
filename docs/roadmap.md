@@ -508,15 +508,28 @@ Answer alignment, residual-risk, discordance, and incremental-information questi
 
 ### Checklist
 
-- [ ] State whether alignment is strong, moderate, or weak using prespecified descriptive criteria.
-- [ ] Identify whether `B` reveals meaningful within-`A` outcome gradients.
-- [ ] Interpret discordant groups.
-- [ ] Distinguish statistical incremental information from clinical utility.
-- [ ] Explicitly disclose foundation-model MIMIC pretraining contamination.
-- [ ] Avoid external-validation language for contaminated models.
-- [ ] Document technical failure rates for both models.
-- [ ] Document any post hoc choices separately from prespecified choices.
-- [ ] Decide whether findings justify a larger external-validation study.
+- [x] State whether alignment is strong, moderate, or weak using prespecified descriptive criteria.
+- [x] Identify whether `B` reveals meaningful within-`A` outcome gradients.
+- [x] Interpret discordant groups.
+- [x] Distinguish statistical incremental information from clinical utility.
+- [x] Explicitly disclose foundation-model MIMIC pretraining contamination.
+- [x] Avoid external-validation language for contaminated models.
+- [x] Document technical failure rates for both models.
+- [x] Document any post hoc choices separately from prespecified choices.
+- [x] Decide whether findings justify a larger external-validation study.
+
+### Deliverables
+
+- [x] `src/ecg_alignment/interpretation.py`
+- [x] `tests/test_interpretation.py`
+- [x] `reports/research-interpretation.md`
+
+### Exit Criteria
+
+- [x] Descriptive alignment classification is documented.
+- [x] Residual risk and discordance findings have clinical interpretations.
+- [x] Contamination disclosure and translation boundaries are explicit.
+- [x] Multi-center external validation roadmap is established.
 
 ## Stage 12 — Repository Hardening
 
