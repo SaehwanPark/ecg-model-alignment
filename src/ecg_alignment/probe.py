@@ -1013,3 +1013,147 @@ def generate_continuous_predictions_markdown(
   ])
 
   return "\n".join(lines)
+
+
+# -----------------------------------------------------------------------------
+# Protected Artifact Persistence & Run Manifest Generation
+# -----------------------------------------------------------------------------
+
+
+def save_unified_prediction_table(
+  df: pl.DataFrame,
+  path: Path | str,
+) -> Path:
+  """Persist verified unified prediction table artifact outside Git.
+
+  Supports Parquet (preferred), Arrow/IPC, or CSV based on file extension.
+  """
+  p = Path(path).expanduser().resolve()
+  p.parent.mkdir(parents=True, exist_ok=True)
+  verify_unified_prediction_table(df)
+  path_str = str(p).lower()
+  if path_str.endswith(".parquet"):
+    df.write_parquet(p)
+  elif path_str.endswith(".csv"):
+    df.write_csv(p)
+  elif path_str.endswith(".ipc") or path_str.endswith(".arrow"):
+    df.write_ipc(p)
+  else:
+    df.write_parquet(p)
+  return p
+
+
+def load_unified_prediction_table(
+  path: Path | str,
+) -> pl.DataFrame:
+  """Load and verify a persisted unified prediction table artifact."""
+  p = Path(path).expanduser().resolve()
+  if not p.exists():
+    raise FileNotFoundError(f"Prediction table not found at: {p}")
+  path_str = str(p).lower()
+  if path_str.endswith(".parquet"):
+    df = pl.read_parquet(p)
+  elif path_str.endswith(".csv"):
+    df = pl.read_csv(p)
+  elif path_str.endswith(".ipc") or path_str.endswith(".arrow"):
+    df = pl.read_ipc(p)
+  else:
+    try:
+      df = pl.read_parquet(p)
+    except Exception:
+      df = pl.read_csv(p)
+  verify_unified_prediction_table(df)
+  return df
+
+
+def generate_run_manifest(
+  unified_df: pl.DataFrame,
+  probe: TrainedProbe | None = None,
+  seed: int = DEFAULT_PROBE_SEED,
+  git_sha: str | None = None,
+  dbeta_revision: str = "20ff3ccce1759d7d629171e15befafa9a424d2ca",
+  notes: str | None = None,
+) -> dict[str, Any]:
+  """Generate a structured run manifest recording provenance, data counts, and checksum."""
+  import hashlib
+  from datetime import datetime, timezone
+
+  verify_unified_prediction_table(unified_df)
+
+  # Deterministic checksum of identifiers and score fields
+  id_bytes = b"".join(
+    f"{r['subject_id']}:{r['study_id']}:{r['model_a_score']}:{r['model_b_score']}\n".encode("utf-8")
+    for r in unified_df.select(["subject_id", "study_id", "model_a_score", "model_b_score"]).iter_rows(named=True)
+  )
+  checksum = hashlib.sha256(id_bytes).hexdigest()
+
+  dev_df = unified_df.filter(pl.col("split") == "dev")
+  val_df = unified_df.filter(pl.col("split") == "val")
+  test_df = unified_df.filter(pl.col("split") == "test")
+
+  total_events = (
+    int(unified_df["mortality_30d"].cast(pl.Int64).sum())
+    if "mortality_30d" in unified_df.columns
+    else 0
+  )
+  dev_events = (
+    int(dev_df["mortality_30d"].cast(pl.Int64).sum())
+    if "mortality_30d" in dev_df.columns
+    else 0
+  )
+  val_events = (
+    int(val_df["mortality_30d"].cast(pl.Int64).sum())
+    if "mortality_30d" in val_df.columns
+    else 0
+  )
+  test_events = (
+    int(test_df["mortality_30d"].cast(pl.Int64).sum())
+    if "mortality_30d" in test_df.columns
+    else 0
+  )
+
+  manifest: dict[str, Any] = {
+    "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+    "git_sha": git_sha,
+    "seed": seed,
+    "dbeta_revision": dbeta_revision,
+    "checksum_sha256": checksum,
+    "cohort_counts": {
+      "total_patients": len(unified_df),
+      "dev_patients": len(dev_df),
+      "val_patients": len(val_df),
+      "test_patients": len(test_df),
+    },
+    "event_counts_30d": {
+      "total_events": total_events,
+      "dev_events": dev_events,
+      "val_events": val_events,
+      "test_events": test_events,
+    },
+    "model_validity": {
+      "model_a_valid_n": int(unified_df.filter(pl.col("model_a_valid") == True).shape[0]),  # noqa: E712
+      "model_b_valid_n": int(unified_df.filter(pl.col("model_b_valid") == True).shape[0]),  # noqa: E712
+      "both_valid_n": int(
+        unified_df.filter(
+          (pl.col("model_a_valid") == True) & (pl.col("model_b_valid") == True)  # noqa: E712
+        ).shape[0]
+      ),
+    },
+    "probe_config": probe.to_dict()["config"] if probe is not None else None,
+    "probe_best_c": probe.best_c if probe is not None else None,
+    "notes": notes,
+  }
+  return manifest
+
+
+def save_run_manifest(
+  manifest: dict[str, Any],
+  path: Path | str,
+) -> Path:
+  """Write run manifest metadata to a JSON file."""
+  p = Path(path).expanduser().resolve()
+  p.parent.mkdir(parents=True, exist_ok=True)
+  with open(p, "w", encoding="utf-8") as f:
+    json.dump(manifest, f, indent=2)
+  return p
+

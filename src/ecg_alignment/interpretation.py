@@ -276,7 +276,7 @@ def classify_alignment_strength(
       f"Spearman rho = {rho:.3f} indicates moderate alignment "
       f"({weak_max:.2f} <= |rho| < {strong_min:.2f}), demonstrating that the modern transformer "
       "representation partially recovers classical electrophysiologic injury patterns "
-      "(shared variance ~26%) while retaining substantial unique representation capacity."
+      "while retaining substantial complementary representation capacity."
     )
   else:
     strength = AlignmentStrength.STRONG
@@ -913,12 +913,12 @@ def synthesize_research_interpretation(
   # Executive Summary
   executive_summary = (
     "STAGE 11 RESEARCH INTERPRETATION SYNTHESIS:\n"
-    "1. Global Alignment: Moderate (Spearman rho = 0.512), indicating shared electrophysiologic signal alongside substantial unique variance.\n"
-    "2. Residual Risk: Model B produces strong, statistically robust mortality gradients (2.36x - 2.86x) within all conventional CIIS categories.\n"
-    "3. Discordance: Identifies an occult high-risk cohort (29.7% of patients) with a 2.35-fold increased 30-day mortality rate.\n"
-    "4. Statistical vs Clinical Utility: While incremental prognostic value is confirmed (LRT p < 10^-15, Delta AUROC +0.0872), clinical utility remains to be demonstrated through prospective decision-curve and intervention studies.\n"
-    "5. Scientific Disclosure: Because D-BETA was pretrained on MIMIC-IV-ECG, these findings represent in-domain representation probing, not external validation.\n"
-    "6. External Validation: Strongly justified across independent multi-center cohorts."
+    f"1. Global Alignment: {alignment.strength.value.capitalize()} (Spearman rho = {alignment.spearman_rho:.3f}), indicating shared electrophysiologic signal alongside complementary representation capacity.\n"
+    f"2. Residual Risk: Model B produces meaningful mortality gradients (mean gradient ratio {within_a.mean_gradient_ratio:.2f}x) across traditional CIIS categories.\n"
+    f"3. Discordance: Identifies an occult high-risk cohort with a {discordance.occult_relative_risk:.2f}-fold increased 30-day mortality rate.\n"
+    f"4. Statistical vs Clinical Utility: Incremental prognostic value is confirmed (LRT p = {utility_distinction.lrt_pvalue:.2e}, Delta AUROC = +{utility_distinction.delta_auroc:.4f}); clinical utility remains to be demonstrated through prospective decision-curve and intervention studies.\n"
+    "5. Scientific Disclosure: Because foundation models were pretrained on MIMIC-IV-ECG, findings represent in-domain representation probing, not independent external validation.\n"
+    f"6. External Validation: {external_val.status.value.replace('_', ' ').title()} across independent multi-center cohorts."
   )
 
   return ResearchInterpretationSynthesis(

@@ -222,6 +222,8 @@ def test_compute_global_alignment() -> None:
   assert len(align.a_grid) == 25
   assert len(align.expected_b_smooth) == 25
   assert len(align.risk_surface_matrix) == 5
+  assert len(align.risk_surface_counts) == 5
+  assert sum(sum(row) for row in align.risk_surface_counts) == len(a_scores)
 
 
 def test_compute_global_performance_and_comparison() -> None:
@@ -265,6 +267,8 @@ def test_compute_discordance_analysis() -> None:
   assert disc.a_threshold == 15.0
   assert disc.risk_diff_alow_bhigh_vs_alow_blow.point_estimate is not None
   assert disc.risk_ratio_alow_bhigh_vs_alow_blow.point_estimate is not None
+  assert disc.risk_diff_ahigh_bhigh_vs_ahigh_blow.point_estimate is not None
+  assert disc.risk_diff_ahigh_bhigh_vs_ahigh_blow.ci_lower <= disc.risk_diff_ahigh_bhigh_vs_ahigh_blow.ci_upper
 
 
 def test_compute_incremental_information() -> None:

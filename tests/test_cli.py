@@ -259,3 +259,35 @@ def test_cli_subcommands_execution(
     "--skip-figures",
   ])
   assert pipe_rc == 0
+  assert (out_dir / "run_manifest.json").exists()
+
+
+def test_cli_simulate_and_predictions_cache(
+  synthetic_mimic_env: tuple[Path, Path],
+  tmp_path: Path,
+) -> None:
+  mimic_dir, ecg_dir = synthetic_mimic_env
+  out_dir = tmp_path / "sim_out"
+  pred_file = out_dir / "custom_preds.parquet"
+
+  # Run probe in simulate mode with explicit predictions-path
+  rc = main([
+    "probe",
+    "--mimic-root", str(mimic_dir),
+    "--ecg-root", str(ecg_dir),
+    "--output-dir", str(out_dir),
+    "--simulate",
+    "--predictions-path", str(pred_file),
+  ])
+  assert rc == 0
+  assert pred_file.exists()
+
+  # Run analyze loading the cached predictions
+  rc_analyze = main([
+    "analyze",
+    "--output-dir", str(out_dir),
+    "--predictions-path", str(pred_file),
+  ])
+  assert rc_analyze == 0
+  assert (out_dir / "primary-results.md").exists()
+

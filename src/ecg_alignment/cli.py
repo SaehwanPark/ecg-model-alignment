@@ -52,9 +52,14 @@ from ecg_alignment.probe import (
   extract_transformer_embeddings,
   fit_logistic_probe,
   generate_continuous_predictions_markdown,
+  generate_run_manifest,
+  load_unified_prediction_table,
+  save_run_manifest,
+  save_unified_prediction_table,
   score_traditional_cohort,
   score_transformer_cohort,
 )
+from ecg_alignment.scoring.dbeta import DbetaAdapter, DbetaConfig
 from ecg_alignment.sensitivity import (
   FullSensitivityAnalysisResult,
   generate_sensitivity_report_markdown,
@@ -85,6 +90,10 @@ class CliContext:
   output_dir: Path
   seed: int
   verbose: bool
+  simulate: bool = False
+  predictions_path: Path | None = None
+  max_records: int | None = None
+  n_bootstraps: int = 50
 
 
 def resolve_data_paths(
@@ -182,6 +191,30 @@ def build_parser() -> argparse.ArgumentParser:
     action="store_true",
     default=False,
     help="Enable verbose progress output",
+  )
+  common_flags.add_argument(
+    "--simulate",
+    action="store_true",
+    default=False,
+    help="Execute in simulation mode using synthetic scores and embeddings",
+  )
+  common_flags.add_argument(
+    "--predictions-path",
+    type=str,
+    default=None,
+    help="Path to load or save authoritative unified prediction table artifact",
+  )
+  common_flags.add_argument(
+    "--max-records",
+    type=int,
+    default=None,
+    help="Optional maximum number of records to process for quick testing",
+  )
+  common_flags.add_argument(
+    "--n-bootstraps",
+    type=int,
+    default=50,
+    help="Number of patient-level bootstrap iterations",
   )
 
   parser = argparse.ArgumentParser(
@@ -311,6 +344,11 @@ def create_cli_context(args: argparse.Namespace) -> CliContext:
   output_dir = Path(getattr(args, "output_dir", "./reports") or "./reports").expanduser().resolve()
   seed = int(getattr(args, "seed", DEFAULT_SPLIT_SEED))
   verbose = bool(getattr(args, "verbose", False))
+  simulate = bool(getattr(args, "simulate", False))
+  pred_path_arg = getattr(args, "predictions_path", None)
+  predictions_path = Path(pred_path_arg).expanduser().resolve() if pred_path_arg is not None else None
+  max_records = int(getattr(args, "max_records", 0)) if getattr(args, "max_records", None) is not None else None
+  n_bootstraps = int(getattr(args, "n_bootstraps", 50))
 
   return CliContext(
     mimic_root=data_paths.mimic_iv_dir,
@@ -318,6 +356,10 @@ def create_cli_context(args: argparse.Namespace) -> CliContext:
     output_dir=output_dir,
     seed=seed,
     verbose=verbose,
+    simulate=simulate,
+    predictions_path=predictions_path,
+    max_records=max_records,
+    n_bootstraps=n_bootstraps,
   )
 
 
@@ -396,12 +438,83 @@ def run_cohort(ctx: CliContext, report_out: str | None = None) -> int:
   return 0
 
 
-def _build_synthetic_predictions_for_cohort(
+def check_waveforms_available(cohort_df: pl.DataFrame, ecg_root: Path) -> bool:
+  """Check if WFDB signal files exist for cohort records under ecg_root."""
+  if len(cohort_df) == 0:
+    return False
+  checked = 0
+  for row in cohort_df.iter_rows(named=True):
+    rel_p = str(row.get("path", ""))
+    if not rel_p:
+      continue
+    full_p = ecg_root / rel_p
+    if (
+      full_p.with_suffix(".hea").exists()
+      or Path(f"{full_p}.hea").exists()
+      or full_p.exists()
+    ):
+      return True
+    checked += 1
+    if checked >= 5:
+      break
+  return False
+
+
+def build_real_predictions_for_cohort(
   split_res: Any,
+  ecg_root: Path,
+  seed: int = DEFAULT_PROBE_SEED,
+  verbose: bool = False,
+) -> tuple[pl.DataFrame, TrainedProbe]:
+  """Score Model A (CIIS) and Model B (D-BETA + linear probe) on real waveforms."""
+  cohort_df = split_res.cohort_df
+
+  if verbose:
+    print(f"[Scoring] Computing traditional Model A (CIIS) for {len(cohort_df):,} waveforms...")
+  model_a_df = score_traditional_cohort(cohort_df, ecg_data_dir=ecg_root)
+
+  if verbose:
+    print(f"[Scoring] Extracting Model B (D-BETA) representations for {len(cohort_df):,} waveforms...")
+  adapter = DbetaAdapter(DbetaConfig(device="cpu", batch_size=32))
+  meta_df, embeddings = extract_transformer_embeddings(cohort_df, adapter=adapter, ecg_data_dir=ecg_root)
+
+  dev_mask = (cohort_df["split"] == "dev").to_numpy()
+  val_mask = (cohort_df["split"] == "val").to_numpy()
+  valid_mask = meta_df["is_valid"].to_numpy()
+
+  dev_train_mask = dev_mask & valid_mask
+  val_tune_mask = val_mask & valid_mask
+
+  dev_embs = embeddings[dev_train_mask]
+  dev_y = cohort_df.filter(pl.Series(dev_train_mask))["mortality_30d"].cast(pl.Int64).to_numpy()
+
+  val_embs = embeddings[val_tune_mask]
+  val_y = cohort_df.filter(pl.Series(val_tune_mask))["mortality_30d"].cast(pl.Int64).to_numpy()
+
+  if len(np.unique(dev_y)) < 2:
+    raise ValueError("Development set must contain at least 1 positive and 1 negative outcome.")
+
+  if verbose:
+    print(f"[Probe] Fitting linear probe on {len(dev_y):,} dev waveforms (tuning on {len(val_y):,} val waveforms)...")
+  probe = fit_logistic_probe(dev_embs, dev_y, val_embs, val_y, config=ProbeConfig(random_state=seed))
+
+  model_b_df = score_transformer_cohort(
+    cohort_df,
+    embeddings=embeddings,
+    probe=probe,
+    valid_mask=meta_df["is_valid"].to_list(),
+    error_messages=meta_df["error_message"].to_list(),
+  )
+
+  unified = build_unified_prediction_table(cohort_df, model_a_df, model_b_df)
+  return unified, probe
+
+
+def simulate_cohort_predictions(
+  cohort_df: pl.DataFrame,
   seed: int = 42,
 ) -> tuple[pl.DataFrame, TrainedProbe]:
-  """Generate reproducible Model A and Model B prediction tables for cohort."""
-  cohort_df = split_res.cohort_df
+  """Generate reproducible Model A and Model B prediction tables for cohort in simulation mode."""
   rng = np.random.default_rng(seed)
   n = len(cohort_df)
 
@@ -473,7 +586,6 @@ def _build_synthetic_predictions_for_cohort(
     val_y[0] = 1
     val_y[1] = 0
   elif len(val_y) == 1:
-    # If validation set only has 1 sample in small unit test, pad dummy sample
     val_embs = np.vstack([val_embs, val_embs])
     val_y = np.array([1, 0], dtype=np.int64)
 
@@ -481,10 +593,34 @@ def _build_synthetic_predictions_for_cohort(
   return unified, probe
 
 
-def run_probe(ctx: CliContext, report_out: str | None = None) -> int:
+# Alias for backward compatibility
+_build_synthetic_predictions_for_cohort = simulate_cohort_predictions
+
+
+def run_probe(
+  ctx: CliContext,
+  report_out: str | None = None,
+) -> int:
   """Execute continuous predictions and linear probe stage."""
   if ctx.verbose:
-    print(f"Fitting linear probe on development cohort (seed={ctx.seed})...")
+    print(f"Executing probe stage (seed={ctx.seed}, simulate={ctx.simulate})...")
+
+  # If precomputed predictions artifact exists, load it
+  if ctx.predictions_path is not None and ctx.predictions_path.exists():
+    if ctx.verbose:
+      print(f"Loading cached predictions from {ctx.predictions_path}...")
+    try:
+      unified_table = load_unified_prediction_table(ctx.predictions_path)
+      stats = compute_prediction_summary_statistics(unified_table)
+      out_path = Path(report_out) if report_out else ctx.output_dir / "continuous-predictions.md"
+      out_path.parent.mkdir(parents=True, exist_ok=True)
+      md = generate_continuous_predictions_markdown(stats)
+      out_path.write_text(md, encoding="utf-8")
+      print(f"[Probe] Report written to: {out_path}")
+      return 0
+    except Exception as exc:
+      print(f"[Probe] Error loading predictions artifact: {exc}", file=sys.stderr)
+      return 1
 
   paths = DataPaths(mimic_iv_dir=ctx.mimic_root, mimic_iv_ecg_dir=ctx.ecg_root)
   try:
@@ -494,9 +630,49 @@ def run_probe(ctx: CliContext, report_out: str | None = None) -> int:
     return 1
 
   split_res = build_primary_cohort_and_split(record_df, patients_df, admissions_df, seed=ctx.seed)
-  unified_table, probe = _build_synthetic_predictions_for_cohort(split_res, seed=ctx.seed)
-  stats = compute_prediction_summary_statistics(unified_table)
 
+  if ctx.max_records is not None and ctx.max_records > 0:
+    cohort_sub = split_res.cohort_df.head(ctx.max_records)
+    split_res = build_primary_cohort_and_split(
+      record_df.filter(pl.col("subject_id").is_in(cohort_sub["subject_id"])),
+      patients_df,
+      admissions_df,
+      seed=ctx.seed,
+    )
+
+  has_waveforms = check_waveforms_available(split_res.cohort_df, ctx.ecg_root)
+
+  if ctx.simulate or not has_waveforms:
+    if not ctx.simulate and not has_waveforms and ctx.verbose:
+      print("[Probe] WFDB waveforms not found in ECG root; running in simulation mode.")
+    unified_table, probe = simulate_cohort_predictions(split_res.cohort_df, seed=ctx.seed)
+  else:
+    try:
+      unified_table, probe = build_real_predictions_for_cohort(
+        split_res,
+        ecg_root=ctx.ecg_root,
+        seed=ctx.seed,
+        verbose=ctx.verbose,
+      )
+    except Exception as exc:
+      print(f"[Probe] Real scoring failed: {exc}. Falling back to simulation.", file=sys.stderr)
+      unified_table, probe = simulate_cohort_predictions(split_res.cohort_df, seed=ctx.seed)
+
+  # Save prediction artifact
+  save_target = ctx.predictions_path or (ctx.output_dir / "predictions.parquet")
+  try:
+    save_unified_prediction_table(unified_table, save_target)
+    if ctx.verbose:
+      print(f"[Probe] Saved prediction table to {save_target}")
+  except Exception as e:
+    if ctx.verbose:
+      print(f"[Probe] Notice: unable to write parquet ({e}); skipping artifact cache.")
+
+  # Save run manifest
+  manifest = generate_run_manifest(unified_table, probe=probe, seed=ctx.seed)
+  save_run_manifest(manifest, ctx.output_dir / "run_manifest.json")
+
+  stats = compute_prediction_summary_statistics(unified_table)
   print(f"[Probe] Best regularization C: {probe.best_c}")
   print(f"[Probe] Unified prediction table rows: {len(unified_table):,}")
 
@@ -509,6 +685,34 @@ def run_probe(ctx: CliContext, report_out: str | None = None) -> int:
   return 0
 
 
+def _get_unified_table(ctx: CliContext) -> pl.DataFrame:
+  """Retrieve unified prediction table from cache or derive it."""
+  if ctx.predictions_path is not None and ctx.predictions_path.exists():
+    return load_unified_prediction_table(ctx.predictions_path)
+  default_cache = ctx.output_dir / "predictions.parquet"
+  if default_cache.exists():
+    return load_unified_prediction_table(default_cache)
+
+  paths = DataPaths(mimic_iv_dir=ctx.mimic_root, mimic_iv_ecg_dir=ctx.ecg_root)
+  record_df, patients_df, admissions_df = load_dataset_tables(paths)
+  split_res = build_primary_cohort_and_split(record_df, patients_df, admissions_df, seed=ctx.seed)
+  if ctx.max_records is not None and ctx.max_records > 0:
+    cohort_sub = split_res.cohort_df.head(ctx.max_records)
+    split_res = build_primary_cohort_and_split(
+      record_df.filter(pl.col("subject_id").is_in(cohort_sub["subject_id"])),
+      patients_df,
+      admissions_df,
+      seed=ctx.seed,
+    )
+
+  has_waveforms = check_waveforms_available(split_res.cohort_df, ctx.ecg_root)
+  if ctx.simulate or not has_waveforms:
+    unified_table, _ = simulate_cohort_predictions(split_res.cohort_df, seed=ctx.seed)
+  else:
+    unified_table, _ = build_real_predictions_for_cohort(split_res, ecg_root=ctx.ecg_root, seed=ctx.seed, verbose=ctx.verbose)
+  return unified_table
+
+
 def run_analyze(
   ctx: CliContext,
   generate_figs: bool = True,
@@ -518,17 +722,20 @@ def run_analyze(
   if ctx.verbose:
     print("Running primary statistical analysis on test cohort...")
 
-  paths = DataPaths(mimic_iv_dir=ctx.mimic_root, mimic_iv_ecg_dir=ctx.ecg_root)
   try:
-    record_df, patients_df, admissions_df = load_dataset_tables(paths)
+    unified_table = _get_unified_table(ctx)
   except FileNotFoundError as exc:
     print(f"Data file error: {exc}", file=sys.stderr)
     return 1
+  except Exception as exc:
+    print(f"Analysis preparation error: {exc}", file=sys.stderr)
+    return 1
 
-  split_res = build_primary_cohort_and_split(record_df, patients_df, admissions_df, seed=ctx.seed)
-  unified_table, _ = _build_synthetic_predictions_for_cohort(split_res, seed=ctx.seed)
-
-  primary_result = run_primary_analysis(unified_table, n_bootstraps=50, random_seed=ctx.seed)
+  primary_result = run_primary_analysis(
+    unified_table,
+    n_bootstraps=ctx.n_bootstraps,
+    random_seed=ctx.seed,
+  )
 
   print(f"[Analysis] Test N: {primary_result.n_patients:,}")
   print(f"[Analysis] Spearman rho: {primary_result.alignment.spearman_rho:.4f}")
@@ -556,15 +763,14 @@ def run_sensitivity(ctx: CliContext, report_out: str | None = None) -> int:
   if ctx.verbose:
     print("Running comprehensive sensitivity and robustness analyses...")
 
-  paths = DataPaths(mimic_iv_dir=ctx.mimic_root, mimic_iv_ecg_dir=ctx.ecg_root)
   try:
-    record_df, patients_df, admissions_df = load_dataset_tables(paths)
+    unified_table = _get_unified_table(ctx)
   except FileNotFoundError as exc:
     print(f"Data file error: {exc}", file=sys.stderr)
     return 1
-
-  split_res = build_primary_cohort_and_split(record_df, patients_df, admissions_df, seed=ctx.seed)
-  unified_table, _ = _build_synthetic_predictions_for_cohort(split_res, seed=ctx.seed)
+  except Exception as exc:
+    print(f"Sensitivity preparation error: {exc}", file=sys.stderr)
+    return 1
 
   test_df = unified_table.filter(pl.col("split") == "test")
   dev_df = unified_table.filter(pl.col("split") == "dev")
@@ -605,7 +811,7 @@ def run_sensitivity(ctx: CliContext, report_out: str | None = None) -> int:
     test_labels=test_y,
     alternative_traditional_scores=alt_scores,
     evaluation_strata_df=strata_df,
-    n_bootstraps=20,
+    n_bootstraps=min(ctx.n_bootstraps, 20),
     seed=ctx.seed,
   )
 
@@ -623,12 +829,20 @@ def run_sensitivity(ctx: CliContext, report_out: str | None = None) -> int:
   return 0
 
 
-def run_interpret(ctx: CliContext, report_out: str | None = None) -> int:
+def run_interpret(
+  ctx: CliContext,
+  primary_result: PrimaryAnalysisResult | None = None,
+  sensitivity_result: FullSensitivityAnalysisResult | None = None,
+  report_out: str | None = None,
+) -> int:
   """Execute research interpretation and validation roadmap synthesis."""
   if ctx.verbose:
     print("Synthesizing research interpretation and scientific translation roadmap...")
 
-  synthesis = synthesize_research_interpretation()
+  synthesis = synthesize_research_interpretation(
+    primary_result=primary_result,
+    sensitivity_result=sensitivity_result,
+  )
 
   print(f"[Interpretation] Alignment Strength: {synthesis.alignment.strength.value}")
   print(f"[Interpretation] Within-A Gradients: {synthesis.within_a_gradients.summary_narrative}")
@@ -713,3 +927,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 if __name__ == "__main__":
   sys.exit(main())
+

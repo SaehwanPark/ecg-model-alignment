@@ -57,6 +57,11 @@ credentials.json
 # Scratch and intermediate outputs
 scratch/
 tmp/
+artifacts/
+*.parquet
+*.arrow
+*.feather
+run_manifest.json
 reports/figures/
 reports/output/
 
