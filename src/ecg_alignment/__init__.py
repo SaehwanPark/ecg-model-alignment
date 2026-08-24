@@ -29,6 +29,20 @@ from ecg_alignment.data import (
   read_ecg_waveform,
   validate_waveform_eligibility,
 )
+from ecg_alignment.outcomes import (
+  DEFAULT_HORIZONS,
+  DEFAULT_HORIZON_1YR,
+  DEFAULT_HORIZON_30D,
+  DEFAULT_HORIZON_90D,
+  FollowUpPolicy,
+  OutcomeHorizon,
+  compute_inhospital_mortality,
+  compute_mortality_outcomes,
+  compute_outcome_statistics,
+  compute_patient_death_table,
+  filter_valid_outcomes,
+  generate_outcome_report_markdown,
+)
 
 __version__ = "0.1.0"
 
@@ -55,4 +69,17 @@ __all__ = [
   "generate_cohort_flow",
   "link_records_to_admissions",
   "select_index_ecgs",
+  "DEFAULT_HORIZONS",
+  "DEFAULT_HORIZON_1YR",
+  "DEFAULT_HORIZON_30D",
+  "DEFAULT_HORIZON_90D",
+  "FollowUpPolicy",
+  "OutcomeHorizon",
+  "compute_inhospital_mortality",
+  "compute_mortality_outcomes",
+  "compute_outcome_statistics",
+  "compute_patient_death_table",
+  "filter_valid_outcomes",
+  "generate_outcome_report_markdown",
 ]
+

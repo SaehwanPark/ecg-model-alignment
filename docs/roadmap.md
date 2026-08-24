@@ -301,31 +301,31 @@ Construct outcome labels from MIMIC-IV independently from predictor generation.
 
 ### Checklist
 
-- [ ] Identify authoritative MIMIC-IV fields for death ascertainment.
-- [ ] Define exact time origin as index ECG timestamp.
-- [ ] Define 30-day event logic.
-- [ ] Define minimum follow-up requirements.
-- [ ] Identify records with ambiguous or insufficient follow-up.
-- [ ] Decide whether ambiguous follow-up is excluded or censored.
-- [ ] Implement in-hospital mortality as a secondary endpoint.
-- [ ] Implement 90-day mortality as a secondary endpoint if supportable.
-- [ ] Assess feasibility of 1-year mortality.
-- [ ] Test timestamp edge cases.
-- [ ] Test death exactly at time-window boundaries.
-- [ ] Test ECGs occurring after the recorded outcome and reject them.
-- [ ] Keep all outcome code independent from predictor code.
+- [x] Identify authoritative MIMIC-IV fields for death ascertainment.
+- [x] Define exact time origin as index ECG timestamp.
+- [x] Define 30-day event logic.
+- [x] Define minimum follow-up requirements.
+- [x] Identify records with ambiguous or insufficient follow-up.
+- [x] Decide whether ambiguous follow-up is excluded or censored.
+- [x] Implement in-hospital mortality as a secondary endpoint.
+- [x] Implement 90-day mortality as a secondary endpoint if supportable.
+- [x] Assess feasibility of 1-year mortality.
+- [x] Test timestamp edge cases.
+- [x] Test death exactly at time-window boundaries.
+- [x] Test ECGs occurring after the recorded outcome and reject them.
+- [x] Keep all outcome code independent from predictor code.
 
 ### Deliverables
 
-- [ ] `src/ecg_alignment/outcomes.py`
-- [ ] `tests/test_outcomes.py`
-- [ ] `reports/outcome-definition.md`
+- [x] `src/ecg_alignment/outcomes.py`
+- [x] `tests/test_outcomes.py`
+- [x] `reports/outcome-definition.md`
 
 ### Exit Criteria
 
-- [ ] Every eligible patient has a reproducible event/censoring status.
-- [ ] Outcome construction is fully tested.
-- [ ] No outcome-derived field enters predictor preprocessing.
+- [x] Every eligible patient has a reproducible event/censoring status.
+- [x] Outcome construction is fully tested.
+- [x] No outcome-derived field enters predictor preprocessing.
 
 ## Stage 7 — Freeze the Primary Cohort and Split
 
