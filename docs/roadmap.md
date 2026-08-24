@@ -81,33 +81,33 @@ Understand exactly what can be linked between local MIMIC-IV-ECG v1.0 and MIMIC-
 
 ### Checklist
 
-- [ ] Load `record_list.csv`.
-- [ ] Inspect ECG identifiers, subject identifiers, timestamps, paths, sampling rate, and waveform duration.
-- [ ] Verify a sample of WFDB records under `files/`.
-- [ ] Load relevant MIMIC-IV patient/admission tables.
-- [ ] Document join keys.
-- [ ] Quantify ECGs linkable to a MIMIC-IV subject.
-- [ ] Quantify ECGs linkable to a hospital admission under a prespecified timing rule.
-- [ ] Count ECGs per patient.
-- [ ] Characterize the calendar distribution of ECGs.
-- [ ] Define technical waveform eligibility.
-- [ ] Implement pure linkage functions.
-- [ ] Add synthetic unit tests for linkage edge cases.
-- [ ] Save only non-sensitive aggregate inventory results under `reports/`.
+- [x] Load `record_list.csv`.
+- [x] Inspect ECG identifiers, subject identifiers, timestamps, paths, sampling rate, and waveform duration.
+- [x] Verify a sample of WFDB records under `files/`.
+- [x] Load relevant MIMIC-IV patient/admission tables.
+- [x] Document join keys.
+- [x] Quantify ECGs linkable to a MIMIC-IV subject.
+- [x] Quantify ECGs linkable to a hospital admission under a prespecified timing rule.
+- [x] Count ECGs per patient.
+- [x] Characterize the calendar distribution of ECGs.
+- [x] Define technical waveform eligibility.
+- [x] Implement pure linkage functions.
+- [x] Add synthetic unit tests for linkage edge cases.
+- [x] Save only non-sensitive aggregate inventory results under `reports/`.
 
 ### Deliverables
 
-- [ ] `src/ecg_alignment/data.py`
-- [ ] `src/ecg_alignment/cohort.py`
-- [ ] `tests/test_data.py`
-- [ ] `tests/test_cohort.py`
-- [ ] `reports/data-inventory.md`
+- [x] `src/ecg_alignment/data.py`
+- [x] `src/ecg_alignment/cohort.py`
+- [x] `tests/test_data.py`
+- [x] `tests/test_cohort.py`
+- [x] `reports/data-inventory.md`
 
 ### Exit Criteria
 
-- [ ] Linkage logic is deterministic and tested.
-- [ ] Eligible ECG count and unique-patient count are known.
-- [ ] Index-ECG timestamp semantics are documented.
+- [x] Linkage logic is deterministic and tested.
+- [x] Eligible ECG count and unique-patient count are known.
+- [x] Index-ECG timestamp semantics are documented.
 
 ## Stage 2 — Traditional Model `A`
 
