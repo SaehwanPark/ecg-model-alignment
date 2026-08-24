@@ -76,7 +76,7 @@ Observed 30-day all-cause mortality rate across joint quintiles of Model `A` (CI
 
 ## 3. Global Discriminative and Calibration Performance
 
-Evaluated on the untouched final test partition ($N = 32,256$ patients, $N_{\text{events}} = 1,842$, baseline event rate = 5.71%):
+Evaluated on the untouched final test partition ($N = 32,256$ patients, $N_{\text{events}} = 941$, baseline event rate = 2.92%):
 
 | Performance Metric | Model A (Traditional CIIS) | Model B (D-BETA Linear Probe) | Paired Difference (Model B − Model A) | Empirical $p$-value |
 | :--- | :--- | :--- | :--- | :--- |

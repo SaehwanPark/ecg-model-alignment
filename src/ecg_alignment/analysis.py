@@ -585,6 +585,7 @@ def compute_global_alignment(
 def compute_global_performance(
   y_true: npt.NDArray[np.int64] | Sequence[int],
   y_score: npt.NDArray[np.float64] | Sequence[float],
+  probs: npt.NDArray[np.float64] | Sequence[float] | None = None,
   model_name: str = "Model",
   is_probability: bool = True,
   n_bootstraps: int = DEFAULT_BOOTSTRAP_ROUNDS,
@@ -594,9 +595,10 @@ def compute_global_performance(
 
   Args:
     y_true: Binary outcome targets.
-    y_score: Continuous predicted scores or probabilities.
+    y_score: Continuous predicted scores or probabilities (used for AUROC and AUPRC).
+    probs: Optional calibrated probabilities in [0, 1] (used for Brier score, log-loss, and calibration).
     model_name: Descriptive model name.
-    is_probability: Whether y_score is on the [0, 1] probability scale.
+    is_probability: Whether y_score is already on the [0, 1] probability scale.
     n_bootstraps: Bootstrap iterations.
     random_seed: Random seed.
 
@@ -609,7 +611,7 @@ def compute_global_performance(
   n_events = int(np.sum(yt))
   event_rate = float(n_events / n_total) if n_total > 0 else 0.0
 
-  # Bootstrap AUROC
+  # Bootstrap AUROC on continuous scores
   auroc_ci = bootstrap_confidence_interval(
     compute_auroc,
     yt,
@@ -618,7 +620,7 @@ def compute_global_performance(
     random_seed=random_seed,
   )
 
-  # Bootstrap AUPRC
+  # Bootstrap AUPRC on continuous scores
   auprc_ci = bootstrap_confidence_interval(
     compute_auprc,
     yt,
@@ -627,36 +629,30 @@ def compute_global_performance(
     random_seed=random_seed + 1,
   )
 
-  # Probability-specific metrics (Brier score, log-loss, calibration)
-  if is_probability:
-    brier_ci = bootstrap_confidence_interval(
-      compute_brier_score,
-      yt,
-      ys,
-      n_bootstraps=n_bootstraps,
-      random_seed=random_seed + 2,
-    )
-    log_loss_ci: BootstrapConfidenceInterval | None = bootstrap_confidence_interval(
-      compute_binary_log_loss,
-      yt,
-      ys,
-      n_bootstraps=n_bootstraps,
-      random_seed=random_seed + 3,
-    )
-    slope, intercept = compute_calibration_metrics(yt, ys)
+  # Determine probability vector for Brier, log-loss, calibration
+  if probs is not None:
+    p_eval = np.asarray(probs, dtype=np.float64)
+  elif is_probability:
+    p_eval = ys
   else:
-    # Scale score to [0, 1] min-max for pseudo-brier comparison or logistic calibration
     s_min, s_max = float(np.min(ys)), float(np.max(ys))
-    s_scaled = (ys - s_min) / (s_max - s_min) if s_max > s_min else np.full_like(ys, 0.5)
-    brier_ci = bootstrap_confidence_interval(
-      compute_brier_score,
-      yt,
-      s_scaled,
-      n_bootstraps=n_bootstraps,
-      random_seed=random_seed + 2,
-    )
-    log_loss_ci = None
-    slope, intercept = 1.0, 0.0
+    p_eval = (ys - s_min) / (s_max - s_min) if s_max > s_min else np.full_like(ys, 0.5)
+
+  brier_ci = bootstrap_confidence_interval(
+    compute_brier_score,
+    yt,
+    p_eval,
+    n_bootstraps=n_bootstraps,
+    random_seed=random_seed + 2,
+  )
+  log_loss_ci: BootstrapConfidenceInterval | None = bootstrap_confidence_interval(
+    compute_binary_log_loss,
+    yt,
+    p_eval,
+    n_bootstraps=n_bootstraps,
+    random_seed=random_seed + 3,
+  )
+  slope, intercept = compute_calibration_metrics(yt, p_eval)
 
   return GlobalPerformanceResult(
     model_name=model_name,
@@ -1256,10 +1252,22 @@ def run_primary_analysis(
   # 1. Global Alignment
   alignment = compute_global_alignment(a_scores, b_scores, y_true=y_test)
 
+  # Fit a calibrated logistic model for Model A probabilities strictly on DEVELOPMENT data to prevent test leakage
+  y_dev = dev_df[outcome_col].cast(pl.Int64).to_numpy()
+  a_dev = dev_df["model_a_score"].cast(pl.Float64).to_numpy()
+  if len(y_dev) > 0 and len(np.unique(y_dev)) >= 2:
+    clf_a = LogisticRegression(C=1e9, solver="lbfgs")
+    clf_a.fit(a_dev.reshape(-1, 1), y_dev)
+    probs_a_cal = clf_a.predict_proba(a_scores.reshape(-1, 1))[:, 1]
+  else:
+    a_min, a_max = float(np.min(a_scores)), float(np.max(a_scores))
+    probs_a_cal = (a_scores - a_min) / (a_max - a_min) if a_max > a_min else np.full_like(a_scores, 0.5)
+
   # 2. Global Performance for A & B
   perf_a = compute_global_performance(
     y_test,
     a_scores,
+    probs=probs_a_cal,
     model_name="Model A (Traditional CIIS)",
     is_probability=False,
     n_bootstraps=n_bootstraps,
@@ -1273,17 +1281,6 @@ def run_primary_analysis(
     n_bootstraps=n_bootstraps,
     random_seed=random_seed + 10,
   )
-
-  # Fit a calibrated logistic model for A probabilities strictly on DEVELOPMENT data to prevent test leakage
-  y_dev = dev_df[outcome_col].cast(pl.Int64).to_numpy()
-  a_dev = dev_df["model_a_score"].cast(pl.Float64).to_numpy()
-  if len(y_dev) > 0 and len(np.unique(y_dev)) >= 2:
-    clf_a = LogisticRegression(C=1e9, solver="lbfgs")
-    clf_a.fit(a_dev.reshape(-1, 1), y_dev)
-    probs_a_cal = clf_a.predict_proba(a_scores.reshape(-1, 1))[:, 1]
-  else:
-    a_min, a_max = float(np.min(a_scores)), float(np.max(a_scores))
-    probs_a_cal = (a_scores - a_min) / (a_max - a_min) if a_max > a_min else np.full_like(a_scores, 0.5)
 
   comparison = compare_models_performance(
     y_test,
@@ -1519,7 +1516,7 @@ def generate_primary_results_markdown(
     f"| **Calibration Intercept** | {result.performance_a.calibration_intercept:.3f} | {result.performance_b.calibration_intercept:.3f} | — | — |",
     "",
     "> [!NOTE]",
-    "> All confidence intervals are patient-level 95% bootstrap intervals computed over 1,000 resamples.",
+    f"> All confidence intervals are patient-level 95% bootstrap intervals computed over {result.performance_a.auroc.n_bootstraps:,} resamples.",
     "",
     "---",
     "",
@@ -1596,10 +1593,13 @@ def generate_primary_results_markdown(
     "",
     "### Incremental Test of Adding Model B to Model A",
     "",
-    f"- **Likelihood Ratio Test Statistic ($\\Delta G^2$):** `{result.incremental.lrt_statistic:.2f}` ($df={result.incremental.lrt_degrees_of_freedom}$, $p = {result.incremental.lrt_pvalue:.2e}$)",
     f"- **Held-out AUROC Improvement ($\\Delta\\text{{AUROC}}$):** **{result.incremental.auroc_improvement.formatted(4)}**",
     f"- **Held-out Brier Score Improvement ($\\Delta\\text{{Brier}}$):** **{result.incremental.brier_improvement.formatted(4)}**",
     f"- **Held-out Log-Loss Reduction:** `{result.incremental.held_out_loss_reduction:.4f}`",
+    f"- **Descriptive Development LRT Statistic ($\\Delta G^2$):** `{result.incremental.lrt_statistic:.2f}` ($df={result.incremental.lrt_degrees_of_freedom}$, $p = {result.incremental.lrt_pvalue:.2e}$)",
+    "",
+    "> [!NOTE]",
+    "> Primary incremental evaluation relies on paired bootstrap metrics on the untouched test partition (ΔAUROC, ΔBrier, ΔLog-Loss). The nested Likelihood Ratio Test is descriptive, as Model B was derived from an upstream linear probe on development outcomes.",
     "",
     "> [!IMPORTANT]",
     "> As prespecified in the research proposal and roadmap, Net Reclassification Improvement (NRI) and Integrated Discrimination Improvement (IDI) are deliberately excluded from this primary analysis due to well-documented statistical limitations in risk reclassification literature.",

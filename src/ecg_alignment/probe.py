@@ -678,14 +678,22 @@ def extract_transformer_embeddings(
   adapter: BaseEcgModelAdapter,
   ecg_data_dir: Path | str | None = None,
   relative_path_col: str = "path",
+  batch_size: int = 32,
+  checkpoint_path: Path | str | None = None,
+  checkpoint_interval: int = 5000,
 ) -> tuple[pl.DataFrame, npt.NDArray[np.float64]]:
   """Extract frozen ECG representations for cohort using a Model-B adapter.
+
+  Supports batch inference and periodic intermediate checkpointing.
 
   Args:
     cohort_df: Cohort DataFrame with subject_id, study_id, and path.
     adapter: Instantiated model adapter (e.g. DbetaAdapter).
     ecg_data_dir: Optional root directory of WFDB files.
     relative_path_col: Column name containing relative WFDB path.
+    batch_size: Batch size for batched model forward passes.
+    checkpoint_path: Optional path to save intermediate embeddings (.npz or .npy).
+    checkpoint_interval: Number of processed records between checkpoints.
 
   Returns:
     Tuple of (metadata_df, embeddings_2d).
@@ -695,27 +703,90 @@ def extract_transformer_embeddings(
   emb_dim = adapter.config.embedding_dim
 
   embeddings = np.zeros((n_records, emb_dim), dtype=np.float64)
-  valid_flags: list[bool] = []
-  error_messages: list[str | None] = []
+  valid_flags: list[bool] = [False] * n_records
+  error_messages: list[str | None] = [None] * n_records
 
-  for idx, row in enumerate(cohort_df.iter_rows(named=True)):
-    rel_path = str(row.get(relative_path_col, ""))
-    rec_path = data_dir / rel_path if data_dir is not None else Path(rel_path)
+  # If adapter supports embed_batch and batch_size > 1, use batching
+  if batch_size > 1 and hasattr(adapter, "embed_batch"):
+    rows = cohort_df.iter_rows(named=True)
+    batch_records: list[tuple[npt.NDArray[np.float64], Sequence[str], int]] = []
+    batch_indices: list[int] = []
 
-    try:
-      signal_array, lead_names, fs = read_ecg_waveform(rec_path)
-      out = adapter.embed_single(signal_array, lead_names, fs)
+    for idx, row in enumerate(rows):
+      rel_path = str(row.get(relative_path_col, ""))
+      rec_path = data_dir / rel_path if data_dir is not None else Path(rel_path)
 
-      if out.is_valid and out.embedding is not None:
-        embeddings[idx] = out.embedding
-        valid_flags.append(True)
-        error_messages.append(None)
-      else:
-        valid_flags.append(False)
-        error_messages.append(out.error_message or "Invalid embedding output")
-    except Exception as exc:
-      valid_flags.append(False)
-      error_messages.append(str(exc))
+      try:
+        sig, leads, fs = read_ecg_waveform(rec_path)
+        batch_records.append((sig, leads, fs))
+        batch_indices.append(idx)
+      except Exception as exc:
+        valid_flags[idx] = False
+        error_messages[idx] = str(exc)
+
+      # When batch is full or at the end of cohort, run batch inference
+      if len(batch_records) >= batch_size or (idx == n_records - 1 and batch_records):
+        try:
+          batch_res = adapter.embed_batch(batch_records)
+          for b_i, global_idx in enumerate(batch_indices):
+            if batch_res.valid_mask[b_i] and batch_res.embeddings is not None:
+              embeddings[global_idx] = batch_res.embeddings[b_i]
+              valid_flags[global_idx] = True
+              error_messages[global_idx] = None
+            else:
+              valid_flags[global_idx] = False
+              error_messages[global_idx] = (
+                batch_res.failure_reasons[b_i] if b_i < len(batch_res.failure_reasons) else "Batch inference error"
+              )
+        except Exception as exc:
+          for global_idx in batch_indices:
+            valid_flags[global_idx] = False
+            error_messages[global_idx] = f"Batch failure: {exc}"
+
+        batch_records.clear()
+        batch_indices.clear()
+
+      # Periodic intermediate checkpointing
+      if checkpoint_path is not None and (idx + 1) % checkpoint_interval == 0:
+        ckpt_p = Path(checkpoint_path)
+        ckpt_p.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(
+          ckpt_p,
+          embeddings=embeddings[: idx + 1],
+          valid_mask=np.array(valid_flags[: idx + 1], dtype=bool),
+          processed_count=idx + 1,
+        )
+        logger.info("Saved intermediate embedding checkpoint to %s (%d records)", ckpt_p, idx + 1)
+
+  else:
+    for idx, row in enumerate(cohort_df.iter_rows(named=True)):
+      rel_path = str(row.get(relative_path_col, ""))
+      rec_path = data_dir / rel_path if data_dir is not None else Path(rel_path)
+
+      try:
+        signal_array, lead_names, fs = read_ecg_waveform(rec_path)
+        out = adapter.embed_single(signal_array, lead_names, fs)
+
+        if out.is_valid and out.embedding is not None:
+          embeddings[idx] = out.embedding
+          valid_flags[idx] = True
+          error_messages[idx] = None
+        else:
+          valid_flags[idx] = False
+          error_messages[idx] = out.error_message or "Invalid embedding output"
+      except Exception as exc:
+        valid_flags[idx] = False
+        error_messages[idx] = str(exc)
+
+      if checkpoint_path is not None and (idx + 1) % checkpoint_interval == 0:
+        ckpt_p = Path(checkpoint_path)
+        ckpt_p.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(
+          ckpt_p,
+          embeddings=embeddings[: idx + 1],
+          valid_mask=np.array(valid_flags[: idx + 1], dtype=bool),
+          processed_count=idx + 1,
+        )
 
   meta_df = cohort_df.select(["subject_id", "study_id"]).with_columns(
     pl.Series("is_valid", valid_flags, dtype=pl.Boolean),
@@ -1066,15 +1137,49 @@ def load_unified_prediction_table(
   return df
 
 
+def get_current_git_sha() -> str | None:
+  """Retrieve current git commit SHA if repository is available."""
+  import subprocess
+  try:
+    res = subprocess.run(
+      ["git", "rev-parse", "HEAD"],
+      capture_output=True,
+      text=True,
+      check=True,
+      timeout=5,
+    )
+    return res.stdout.strip()
+  except Exception:
+    return None
+
+
+def compute_file_sha256(path: Path | str | None) -> str | None:
+  """Compute SHA-256 hash of a file if it exists."""
+  if path is None:
+    return None
+  import hashlib
+  p = Path(path).expanduser().resolve()
+  if not p.exists() or not p.is_file():
+    return None
+  h = hashlib.sha256()
+  with open(p, "rb") as f:
+    while chunk := f.read(65536):
+      h.update(chunk)
+  return h.hexdigest()
+
+
 def generate_run_manifest(
   unified_df: pl.DataFrame,
   probe: TrainedProbe | None = None,
   seed: int = DEFAULT_PROBE_SEED,
+  data_mode: Literal["real", "simulation"] = "real",
   git_sha: str | None = None,
+  predictions_path: Path | str | None = None,
+  uv_lock_path: Path | str | None = None,
   dbeta_revision: str = "20ff3ccce1759d7d629171e15befafa9a424d2ca",
   notes: str | None = None,
 ) -> dict[str, Any]:
-  """Generate a structured run manifest recording provenance, data counts, and checksum."""
+  """Generate a structured run manifest recording provenance, data mode, checksums, and counts."""
   import hashlib
   from datetime import datetime, timezone
 
@@ -1086,6 +1191,15 @@ def generate_run_manifest(
     for r in unified_df.select(["subject_id", "study_id", "model_a_score", "model_b_score"]).iter_rows(named=True)
   )
   checksum = hashlib.sha256(id_bytes).hexdigest()
+
+  # Git SHA resolution
+  resolved_git_sha = git_sha or get_current_git_sha()
+
+  # uv.lock hash resolution
+  resolved_uv_lock_sha = compute_file_sha256(uv_lock_path or Path("uv.lock"))
+
+  # Serialized prediction artifact hash
+  resolved_artifact_sha = compute_file_sha256(predictions_path)
 
   dev_df = unified_df.filter(pl.col("split") == "dev")
   val_df = unified_df.filter(pl.col("split") == "val")
@@ -1114,7 +1228,10 @@ def generate_run_manifest(
 
   manifest: dict[str, Any] = {
     "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-    "git_sha": git_sha,
+    "data_mode": data_mode,
+    "git_sha": resolved_git_sha,
+    "uv_lock_sha256": resolved_uv_lock_sha,
+    "predictions_artifact_sha256": resolved_artifact_sha,
     "seed": seed,
     "dbeta_revision": dbeta_revision,
     "checksum_sha256": checksum,
