@@ -600,3 +600,111 @@ def score_ecg_waveform(
       is_valid=False,
       error_message=f"Waveform scoring failure: {exc}",
     )
+
+
+def compute_cornell_voltage(
+  signal_array: npt.NDArray[np.float64],
+  lead_names: Sequence[str],
+  fs: int = DEFAULT_SAMPLING_RATE_HZ,
+) -> float:
+  """Calculate Cornell Voltage index (R in aVL + S in V3 in mV) from a 12-lead ECG waveform.
+
+  Cornell voltage is a classical electrophysiologic criterion for left ventricular hypertrophy
+  and myocardial strain (normal cutoff: <= 2.8 mV in men, <= 2.0 mV in women).
+
+  Args:
+    signal_array: 2D array of shape [sig_len, 12] in mV.
+    lead_names: Sequence of lead names matching channels.
+    fs: Sampling rate in Hz.
+
+  Returns:
+    Cornell voltage sum in mV (R_aVL + S_V3).
+  """
+  lead_map = {name: i for i, name in enumerate(lead_names)}
+  for req in ("aVL", "V3"):
+    if req not in lead_map:
+      raise ValueError(f"Required lead {req} not found in lead names: {lead_names}")
+
+  # Filter signals
+  filtered_signals = np.zeros_like(signal_array)
+  for i in range(signal_array.shape[1]):
+    filtered_signals[:, i] = filter_ecg_signal(signal_array[:, i], fs)
+
+  lead2_idx = lead_map.get("II", 0)
+  r_peaks = detect_qrs_peaks(filtered_signals[:, lead2_idx], fs)
+  if len(r_peaks) < 2:
+    v5_idx = lead_map.get("V5", 0)
+    r_peaks = detect_qrs_peaks(filtered_signals[:, v5_idx], fs)
+    if len(r_peaks) < 2:
+      raise ValueError(f"Insufficient R-peaks detected for Cornell voltage: {len(r_peaks)}")
+
+  median_beat, r_idx = extract_median_beat(filtered_signals, r_peaks, fs)
+  avl_feat = extract_lead_features(median_beat[:, lead_map["aVL"]], r_idx, fs)
+  v3_feat = extract_lead_features(median_beat[:, lead_map["V3"]], r_idx, fs)
+  return float(avl_feat.r_amplitude_mv + v3_feat.s_amplitude_mv)
+
+
+def compute_sokolow_lyon_voltage(
+  signal_array: npt.NDArray[np.float64],
+  lead_names: Sequence[str],
+  fs: int = DEFAULT_SAMPLING_RATE_HZ,
+) -> float:
+  """Calculate Sokolow-Lyon Voltage index (S in V1 + max(R in V5, R in V6) in mV).
+
+  Classical voltage criterion for left ventricular hypertrophy (normal cutoff: <= 3.5 mV).
+
+  Args:
+    signal_array: 2D array of shape [sig_len, 12] in mV.
+    lead_names: Sequence of lead names matching channels.
+    fs: Sampling rate in Hz.
+
+  Returns:
+    Sokolow-Lyon voltage sum in mV (S_V1 + max(R_V5, R_V6)).
+  """
+  lead_map = {name: i for i, name in enumerate(lead_names)}
+  for req in ("V1", "V5", "V6"):
+    if req not in lead_map:
+      raise ValueError(f"Required lead {req} not found in lead names: {lead_names}")
+
+  filtered_signals = np.zeros_like(signal_array)
+  for i in range(signal_array.shape[1]):
+    filtered_signals[:, i] = filter_ecg_signal(signal_array[:, i], fs)
+
+  lead2_idx = lead_map.get("II", 0)
+  r_peaks = detect_qrs_peaks(filtered_signals[:, lead2_idx], fs)
+  if len(r_peaks) < 2:
+    v5_idx = lead_map.get("V5", 0)
+    r_peaks = detect_qrs_peaks(filtered_signals[:, v5_idx], fs)
+    if len(r_peaks) < 2:
+      raise ValueError(f"Insufficient R-peaks detected for Sokolow-Lyon voltage: {len(r_peaks)}")
+
+  median_beat, r_idx = extract_median_beat(filtered_signals, r_peaks, fs)
+  v1_feat = extract_lead_features(median_beat[:, lead_map["V1"]], r_idx, fs)
+  v5_feat = extract_lead_features(median_beat[:, lead_map["V5"]], r_idx, fs)
+  v6_feat = extract_lead_features(median_beat[:, lead_map["V6"]], r_idx, fs)
+  return float(v1_feat.s_amplitude_mv + max(v5_feat.r_amplitude_mv, v6_feat.r_amplitude_mv))
+
+
+def score_simplified_ischemic_ecg(
+  measurements: CIISMeasurements,
+) -> float:
+  """Calculate simplified 4-item ischemic score based on key CIIS components.
+
+  Includes:
+  1. aVL Q-wave duration
+  2. Largest Q/R ratio in Lead II or aVF
+  3. V2 T-wave inversion amplitude
+  4. V5 S-wave amplitude
+
+  Args:
+    measurements: CIISMeasurements instance.
+
+  Returns:
+    Continuous simplified ischemic score points.
+  """
+  item1 = score_item1_avl_q_duration(measurements.avl_q_duration_ms)
+  item5 = score_item5_lead2_avf_qr_ratio(measurements.lead2_qr_ratio, measurements.avf_qr_ratio)
+  item10 = score_item10_v2_t_amplitude(measurements.v2_t_neg_mv)
+  item12 = score_item12_v5_s_amplitude(measurements.v5_s_mv)
+  return float(item1 + item5 + item10 + item12)
+
