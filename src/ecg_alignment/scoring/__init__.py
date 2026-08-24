@@ -24,6 +24,16 @@ from ecg_alignment.scoring.cards_clip import (
   cosine_similarity_1d,
   load_cards_clip_model,
 )
+from ecg_alignment.scoring.dbeta import (
+  DEFAULT_DBETA_EMBEDDING_DIM,
+  DEFAULT_DBETA_MODEL_NAME,
+  DEFAULT_DBETA_REVISION,
+  DEFAULT_DBETA_SAMPLING_RATE_HZ,
+  DEFAULT_DBETA_SIGNAL_LENGTH,
+  DbetaAdapter,
+  DbetaConfig,
+  load_dbeta_model,
+)
 from ecg_alignment.scoring.preprocess import (
   pad_or_crop_waveform,
   preprocess_waveform,
@@ -64,6 +74,14 @@ __all__ = [
   "compute_centroid_similarity_score",
   "cosine_similarity_1d",
   "load_cards_clip_model",
+  "DEFAULT_DBETA_EMBEDDING_DIM",
+  "DEFAULT_DBETA_MODEL_NAME",
+  "DEFAULT_DBETA_REVISION",
+  "DEFAULT_DBETA_SAMPLING_RATE_HZ",
+  "DEFAULT_DBETA_SIGNAL_LENGTH",
+  "DbetaAdapter",
+  "DbetaConfig",
+  "load_dbeta_model",
   "pad_or_crop_waveform",
   "preprocess_waveform",
   "render_12lead_ecg_image",
