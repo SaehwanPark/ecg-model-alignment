@@ -256,30 +256,30 @@ Once Hugging Face access is granted, establish the leading peer-reviewed multimo
 
 ### Checklist
 
-- [ ] Confirm access to `Manhph2211/D-BETA`.
-- [ ] Record license and research-use restrictions.
-- [ ] Record exact model revision.
-- [ ] Reproduce official `AutoModel` loading example.
-- [ ] Verify expected input shape `[batch, 12, 5000]`.
-- [ ] Verify lead order and waveform scaling requirements from source.
-- [ ] Verify 768-dimensional `pooler_output`.
-- [ ] Implement D-BETA adapter.
-- [ ] Run on a small MIMIC sample.
-- [ ] Confirm deterministic inference in evaluation mode.
-- [ ] Benchmark batch size and GPU memory.
-- [ ] Document that MIMIC-IV-ECG was used during model pretraining.
-- [ ] Label all subsequent MIMIC analysis as in-domain representation probing.
+- [x] Confirm access to `Manhph2211/D-BETA`.
+- [x] Record license and research-use restrictions.
+- [x] Record exact model revision (`20ff3ccce1759d7d629171e15befafa9a424d2ca`).
+- [x] Reproduce official `AutoModel` loading example.
+- [x] Verify expected input shape `[batch, 12, 5000]`.
+- [x] Verify lead order and waveform scaling requirements from source.
+- [x] Verify 768-dimensional `pooler_output`.
+- [x] Implement D-BETA adapter.
+- [x] Run on a small MIMIC sample.
+- [x] Confirm deterministic inference in evaluation mode.
+- [x] Benchmark batch size and GPU memory.
+- [x] Document that MIMIC-IV-ECG was used during model pretraining.
+- [x] Label all subsequent MIMIC analysis as in-domain representation probing.
 
 ### Deliverables
 
-- [ ] `src/ecg_alignment/scoring/dbeta.py`
-- [ ] `tests/test_dbeta.py`
-- [ ] `reports/dbeta-smoke-test.md`
+- [x] `src/ecg_alignment/scoring/dbeta.py`
+- [x] `tests/test_dbeta.py`
+- [x] `reports/dbeta-smoke-test.md`
 
 ### Exit Criteria
 
-- [ ] Frozen ECG embeddings can be generated reproducibly for the cohort.
-- [ ] No MIMIC-IV clinical feature is involved in embedding generation.
+- [x] Frozen ECG embeddings can be generated reproducibly for the cohort.
+- [x] No MIMIC-IV clinical feature is involved in embedding generation.
 
 ### Stop/Go Gate
 
