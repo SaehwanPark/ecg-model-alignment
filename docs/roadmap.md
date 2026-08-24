@@ -418,64 +418,64 @@ Answer alignment, residual-risk, discordance, and incremental-information questi
 
 ### Global alignment
 
-- [ ] Compute Spearman correlation.
-- [ ] Plot `A` vs `B`.
-- [ ] Plot smooth $E(B \mid A)$.
-- [ ] Create two-dimensional outcome-risk surface.
+- [x] Compute Spearman correlation.
+- [x] Plot `A` vs `B`.
+- [x] Plot smooth $E(B \mid A)$.
+- [x] Create two-dimensional outcome-risk surface.
 
 ### Global performance
 
-- [ ] Compute AUROC for `A`.
-- [ ] Compute AUROC for `B`.
-- [ ] Compute AUPRC for `A`.
-- [ ] Compute AUPRC for `B`.
-- [ ] Evaluate Brier score where meaningful.
-- [ ] Generate calibration plots where meaningful.
-- [ ] Bootstrap patient-level confidence intervals.
+- [x] Compute AUROC for `A`.
+- [x] Compute AUROC for `B`.
+- [x] Compute AUPRC for `A`.
+- [x] Compute AUPRC for `B`.
+- [x] Evaluate Brier score where meaningful.
+- [x] Generate calibration plots where meaningful.
+- [x] Bootstrap patient-level confidence intervals.
 
 ### `A`-stratified analysis
 
-- [ ] Apply published `A` categories.
-- [ ] Report `N` and event rate per category.
-- [ ] Report `B` distribution per category.
-- [ ] Split `B` into prespecified quantiles within or across `A` categories.
-- [ ] Estimate event rates across `B` quantiles.
-- [ ] Compute `B` AUROC/AUPRC within `A` categories where estimable.
-- [ ] Avoid treating range-restricted `A` performance as a fair within-category comparison.
+- [x] Apply published `A` categories.
+- [x] Report `N` and event rate per category.
+- [x] Report `B` distribution per category.
+- [x] Split `B` into prespecified quantiles within or across `A` categories.
+- [x] Estimate event rates across `B` quantiles.
+- [x] Compute `B` AUROC/AUPRC within `A` categories where estimable.
+- [x] Avoid treating range-restricted `A` performance as a fair within-category comparison.
 
 ### Discordance
 
-- [ ] Define prespecified low/high score rules.
-- [ ] Create `A-low/B-low`.
-- [ ] Create `A-low/B-high`.
-- [ ] Create `A-high/B-low`.
-- [ ] Create `A-high/B-high`.
-- [ ] Compare observed event rates.
-- [ ] Bootstrap risk differences and ratios.
+- [x] Define prespecified low/high score rules.
+- [x] Create `A-low/B-low`.
+- [x] Create `A-low/B-high`.
+- [x] Create `A-high/B-low`.
+- [x] Create `A-high/B-high`.
+- [x] Compare observed event rates.
+- [x] Bootstrap risk differences and ratios.
 
 ### Incremental information
 
-- [ ] Fit `Y ~ f(A)`.
-- [ ] Fit `Y ~ B`.
-- [ ] Fit `Y ~ f(A) + B`.
-- [ ] Compare held-out log loss.
-- [ ] Compare AUROC.
-- [ ] Compare Brier score.
-- [ ] Test incremental contribution of `B`.
-- [ ] Keep NRI/IDI out of the primary analysis.
+- [x] Fit `Y ~ f(A)`.
+- [x] Fit `Y ~ B`.
+- [x] Fit `Y ~ f(A) + B`.
+- [x] Compare held-out log loss.
+- [x] Compare AUROC.
+- [x] Compare Brier score.
+- [x] Test incremental contribution of `B`.
+- [x] Keep NRI/IDI out of the primary analysis.
 
 ### Deliverables
 
-- [ ] `src/ecg_alignment/analysis.py`
-- [ ] `tests/test_analysis.py`
-- [ ] `reports/primary-results.md`
-- [ ] reproducible figure outputs
+- [x] `src/ecg_alignment/analysis.py`
+- [x] `tests/test_analysis.py`
+- [x] `reports/primary-results.md`
+- [x] reproducible figure outputs
 
 ### Exit Criteria
 
-- [ ] Every primary result comes from the untouched final test set.
-- [ ] Every reported uncertainty estimate is patient-level.
-- [ ] Analysis can be rerun from a single documented command or workflow.
+- [x] Every primary result comes from the untouched final test set.
+- [x] Every reported uncertainty estimate is patient-level.
+- [x] Analysis can be rerun from a single documented command or workflow.
 
 ## Stage 10 — Sensitivity Analyses
 
