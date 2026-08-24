@@ -42,29 +42,29 @@ Create a reproducible development environment before touching model or outcome l
 
 ### Checklist
 
-- [ ] Initialize repository with `uv`.
-- [ ] Add Python version constraint.
-- [ ] Create `src/ecg_alignment/`.
-- [ ] Create `tests/`.
-- [ ] Create `docs/`.
-- [ ] Create `reports/`.
-- [ ] Add `.gitignore` entries for MIMIC data, model caches, credentials, outputs, and local environments.
-- [ ] Add `.editorconfig` with `indent_size = 2`.
-- [ ] Configure editor settings for Python tab size 2.
-- [ ] Add `pytest` development dependency.
-- [ ] Add `basedpyright` development dependency.
-- [ ] Configure `basedpyright` in `pyproject.toml`.
-- [ ] Configure `pytest` in `pyproject.toml`.
-- [ ] Add a minimal import smoke test.
-- [ ] Confirm `uv run pytest`.
-- [ ] Confirm `uv run basedpyright`.
+- [x] Initialize repository with `uv`.
+- [x] Add Python version constraint.
+- [x] Create `src/ecg_alignment/`.
+- [x] Create `tests/`.
+- [x] Create `docs/`.
+- [x] Create `reports/`.
+- [x] Add `.gitignore` entries for MIMIC data, model caches, credentials, outputs, and local environments.
+- [x] Add `.editorconfig` with `indent_size = 2`.
+- [x] Configure editor settings for Python tab size 2.
+- [x] Add `pytest` development dependency.
+- [x] Add `basedpyright` development dependency.
+- [x] Configure `basedpyright` in `pyproject.toml`.
+- [x] Configure `pytest` in `pyproject.toml`.
+- [x] Add a minimal import smoke test.
+- [x] Confirm `uv run pytest`.
+- [x] Confirm `uv run basedpyright`.
 
 ### Exit Criteria
 
-- [ ] Fresh clone can be initialized with documented `uv` commands.
-- [ ] Test suite passes.
-- [ ] Static type checking passes.
-- [ ] No protected data or credentials are tracked.
+- [x] Fresh clone can be initialized with documented `uv` commands.
+- [x] Test suite passes.
+- [x] Static type checking passes.
+- [x] No protected data or credentials are tracked.
 
 ## Stage 1 — Data Inventory and Linkage
 
