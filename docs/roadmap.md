@@ -535,17 +535,17 @@ Answer alignment, residual-risk, discordance, and incremental-information questi
 
 ### Checklist
 
-- [ ] `uv run pytest` passes.
-- [ ] `uv run basedpyright` passes.
-- [ ] No hard-coded user-specific absolute paths in reusable code.
-- [ ] Local MIMIC paths are configured through CLI/config/environment.
-- [ ] No PHI or row-level protected data in Git.
-- [ ] No Hugging Face token in Git history.
-- [ ] README setup is tested from a clean environment.
-- [ ] Research proposal matches implemented design.
-- [ ] Roadmap reflects completed and deferred items.
-- [ ] Model licenses are documented.
-- [ ] Reproducibility commands are documented.
+- [x] `uv run pytest` passes.
+- [x] `uv run basedpyright` passes.
+- [x] No hard-coded user-specific absolute paths in reusable code.
+- [x] Local MIMIC paths are configured through CLI/config/environment.
+- [x] No PHI or row-level protected data in Git.
+- [x] No Hugging Face token in Git history.
+- [x] README setup is tested from a clean environment.
+- [x] Research proposal matches implemented design.
+- [x] Roadmap reflects completed and deferred items.
+- [x] Model licenses are documented.
+- [x] Reproducibility commands are documented.
 
 ## Recommended GitHub Issue Sequence
 

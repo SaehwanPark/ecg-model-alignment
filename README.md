@@ -208,6 +208,41 @@ Planned structure:
 └── reports/
 ```
 
+## Command-Line Interface & Execution
+
+This project provides a unified entrypoint `ecg-alignment` registered via `pyproject.toml` (and runnable directly via `uv run ecg-alignment` or `uv run python -m ecg_alignment.cli`).
+
+### Environment Variables & Path Resolution
+
+Paths can be configured via flags or environment variables:
+- `MIMIC_ROOT`: Path to MIMIC-IV root directory (default: `~/data/mimiciv/3.1`)
+- `MIMIC_ECG_ROOT` or `ECG_ROOT`: Path to MIMIC-IV-ECG root directory (default: `~/data/mimic-iv-ecg/1.0`)
+
+### Available Subcommands
+
+```bash
+# 1. Stage 1 Data Inventory & Linkage Statistics
+uv run ecg-alignment inventory --report-out ./reports/inventory.md
+
+# 2. Stage 7 Primary Patient Cohort & Patient-Disjoint Split
+uv run ecg-alignment cohort --seed 42 --report-out ./reports/cohort-flow.md
+
+# 3. Stage 8 Frozen-Embedding Linear Probe
+uv run ecg-alignment probe --seed 42 --report-out ./reports/continuous-predictions.md
+
+# 4. Stage 9 Primary Statistical Analysis & Figure Generation
+uv run ecg-alignment analyze --output-dir ./reports --generate-figures
+
+# 5. Stage 10 Comprehensive Sensitivity & Robustness Battery
+uv run ecg-alignment sensitivity --report-out ./reports/sensitivity-analyses.md
+
+# 6. Stage 11 Research Interpretation & Translation Roadmap
+uv run ecg-alignment interpret --report-out ./reports/research-interpretation.md
+
+# 7. End-to-End Pipeline Execution (Stages 1-11)
+uv run ecg-alignment pipeline --output-dir ./reports
+```
+
 ## Python Environment
 
 This project uses [`uv`](https://docs.astral.sh/uv/) for Python and dependency management.
@@ -228,12 +263,6 @@ Run static type checking:
 
 ```bash
 uv run basedpyright
-```
-
-Run a module:
-
-```bash
-uv run python -m ecg_alignment.cli
 ```
 
 Do not create ad hoc Conda environments for project code. When upstream model repositories document Conda-based setup, translate the required Python dependencies into this project's `uv` environment or isolate the upstream reproduction separately.
@@ -451,6 +480,7 @@ It should not be described as independent external validation unless the selecte
 
 - [Research proposal](docs/research-proposal.md)
 - [Staged roadmap](docs/roadmap.md)
+- [Model licenses & data governance](docs/model-licenses.md)
 
 ## Key References
 
