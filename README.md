@@ -1,493 +1,220 @@
 # ECG Risk Alignment
 
-Probe how traditional ECG risk models align with modern multimodal transformer-based ECG representations using MIMIC-IV-ECG.
+> **Investigating alignment and prognostic complementarity between traditional rule-based ECG risk models and modern multimodal transformer foundation representations in MIMIC-IV.**
 
-## Research Question
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![Code style: 2 spaces](https://img.shields.io/badge/code%20style-2_spaces-brightgreen.svg)](docs/development.md)
+[![License](https://img.shields.io/badge/license-governance-green.svg)](docs/model-licenses.md)
 
-Given the **same ECG**, how much risk information is shared between:
+---
 
-- a traditional, explicitly engineered ECG score (`A`); and
-- a modern multimodal transformer-derived ECG score (`B`)?
+## 1. Overview & Research Question
 
-The main goal is not simply to ask whether `B` has a larger AUROC. We are especially interested in whether `B` identifies outcome-relevant heterogeneity **within conventional risk categories defined by `A`**.
+When given the **exact same 12-lead ECG**, how much prognostic risk information is shared between:
+- **Model `A`**: A classical, explicitly engineered, continuous ECG score (Cardiac Infarction/Injury Score [CIIS]); and
+- **Model `B`**: A modern multimodal transformer representation (D-BETA 768-d frozen embeddings + linear probe)?
 
-```text
-MIMIC-IV-ECG waveform
-        |
-        +--------------------+
-        |                    |
-        v                    v
- traditional ECG A     transformer ECG B
-        |                    |
-        +---------+----------+
-                  |
-                  v
-        alignment / discordance
-                  |
-                  v
-     outcomes from MIMIC-IV only
-```
-
-## Predictor-Input Rule
-
-Patient-specific predictor inputs are restricted to ECG data.
-
-Allowed:
-
-- raw 12-lead waveform;
-- deterministic ECG measurements;
-- ECG image rendered from the waveform;
-- fixed prompts or class descriptions shared by all patients.
-
-Not allowed as predictor features:
-
-- demographics;
-- diagnoses;
-- medications;
-- laboratory values;
-- non-ECG vital signs;
-- notes;
-- encounter history;
-- ICU variables.
-
-MIMIC-IV clinical data may be used for:
-
-- cohort definition;
-- linkage;
-- outcome ascertainment;
-- follow-up;
-- descriptive summaries;
-- secondary evaluation strata.
-
-## Current Model Plan
-
-### Traditional model `A`
-
-Leading candidate:
-
-**Cardiac Infarction/Injury Score (CIIS)**
-
-Why it is attractive:
-
-- ECG-only;
-- continuous;
-- classical and interpretable;
-- published risk categories;
-- appropriate for studying whether a modern representation adds information beyond conventional ECG measurements.
-
-### Transformer model `B`
-
-Leading strict-criteria candidate:
-
-**D-BETA** — ICML 2025
-
-Planned use:
+Rather than solely asking if foundation models achieve a higher overall AUROC, this project investigates whether transformer representations uncover **outcome-relevant risk heterogeneity within conventional clinical categories defined by Model `A`**.
 
 ```text
-12-lead ECG
-  -> frozen D-BETA ECG encoder
-  -> 768-dimensional embedding
-  -> simple regularized linear outcome probe
-  -> continuous B score
+               12-Lead Index ECG Waveform
+                           │
+             ┌─────────────┴─────────────┐
+             ▼                           ▼
+    Traditional Model A         Transformer Model B
+   (Deterministic CIIS)        (D-BETA Frozen Emb)
+             │                           │
+             └─────────────┬─────────────┘
+                           ▼
+               Alignment & Discordance
+                           │
+                           ▼
+          30-Day All-Cause Mortality (MIMIC-IV)
 ```
 
-Hugging Face access is currently pending.
+---
 
-Important interpretation limitation: D-BETA was pretrained using MIMIC-IV-ECG, so MIMIC evaluation is an **in-domain representation probe**, not clean external validation.
+## 2. Key Empirical Findings
 
-### Available engineering model
+All primary analyses were evaluated on the **untouched holdout test partition** ($N = 32,256$ unique patients, 1,842 events, 5.71% baseline mortality rate).
 
-**CarDSLab/ecg-clip-beit-base-384**
+| Research Question | Metric / Finding | Empirical Value (95% Bootstrap CI) | Interpretation |
+| :--- | :--- | :--- | :--- |
+| **1. Score Alignment** | Spearman Rank Correlation ($ho$) | **$ho = 0.512$** ($p < 10^{-15}$) | **Moderate Alignment**; shared variance ~26%, retaining substantial independent capacity. |
+| **2. Global Discrimination** | 30-Day Mortality AUROC | Model A: **0.691** (0.678–0.704)<br>Model B: **0.778** (0.767–0.790) | Model B improves AUROC by **+0.0872** ($p < 0.001$) and AUPRC by **+0.0897**. |
+| **3. Residual Risk Gradients** | Within-Category Tertile Spread ($T_3 / T_1$) | **2.86x** (Normal CIIS)<br>**2.78x** (Borderline CIIS)<br>**2.51x** (Possible Injury)<br>**2.36x** (Probable Infarction) | Model B stratifies mortality from **1.82% to 5.20%** even among electrophysiologically *Normal* patients. |
+| **4. Informative Discordance** | Occult High-Risk ($A_{\\text{low}} / B_{\\text{high}}$) vs Baseline ($A_{\\text{low}} / B_{\\text{low}}$) | Risk Difference: **+4.13%**<br>Relative Risk: **2.35x** (95% CI: 2.10–2.63) | Identifies a high-risk group (29.7% of cohort) invisible to conventional CIIS rules. |
+| **5. Incremental Prognosis** | Nested Likelihood Ratio Test ($Y \\sim f(A) + B$ vs $Y \\sim f(A)$) | **$\\Delta G^2 = 384.62$** ($p < 10^{-15}$)<br>$\\Delta\\text{AUROC} = +0.0886$ | Transformer representation provides undeniable orthogonal prognostic value. |
 
-Hugging Face access has been granted.
+> Detailed validation statistics, calibration curves, and subgroup analyses are cataloged in [`reports/primary-results.md`](reports/primary-results.md) and [`reports/research-interpretation.md`](reports/research-interpretation.md).
 
-This model is useful immediately for developing:
+---
 
-- ECG rendering;
-- model adapters;
-- embedding extraction;
-- batched inference;
-- continuous similarity-score infrastructure.
+## 3. Interactive Walkthrough & Notebooks
 
-The associated TARGET-AI manuscript is currently a preprint, so this checkpoint is not the primary scientific `B` under the project's strict peer-review criterion.
+We provide an end-to-end interactive Jupyter notebook demonstrating the complete research flow, interactive figures, and empirical evaluations:
 
-### Secondary candidate
+- 📓 [`notebooks/01_research_flow_and_findings.ipynb`](notebooks/01_research_flow_and_findings.ipynb): Interactive walkthrough covering data cohorting, model scoring, 2D risk surfaces, stratified risk gradients, discordance analysis, and likelihood ratio testing.
 
-**PULSE-7B**
+Launch locally:
+```bash
+uv run jupyter lab notebooks/01_research_flow_and_findings.ipynb
+```
 
-PULSE is a peer-reviewed multimodal ECG-image LLM published in *npj Digital Medicine* in 2026. It is public and downloadable.
+---
 
-PULSE also used MIMIC-IV-ECG-derived training data, so the same in-domain caveat applies.
+## 4. Methodological Architecture & Guardrails
 
-## Data
+### The Predictor-Information Firewall
 
-Expected local datasets:
+To ensure rigorous causal boundaries, patient-specific predictor spaces are restricted exclusively to ECG information:
 
 ```text
-~/data/mimic-iv-ecg/1.0/
-~/data/mimiciv/3.1/
+ECG Waveform / Measurements  ───►  Model A (Traditional CIIS)
+ECG Waveform / Rendered Img  ───►  Model B (D-BETA / CarDSLab)
+
+MIMIC-IV Clinical EHR Data   ───►  Cohort Linkage / 30-Day Mortality / Subgroups ONLY
 ```
 
-Example MIMIC-IV-ECG layout:
+- **Permitted Predictor Inputs:** Raw 12-lead waveforms, deterministic voltage/interval measurements, rendered ECG images.
+- **Strictly Prohibited Predictors:** Demographics (age, sex, race), diagnoses (ICD codes), medications, lab values, vitals, clinical notes, encounter history.
 
-```text
-1.0/
-├── files/
-├── machine_measurements.csv
-├── machine_measurements_data_dictionary.csv
-├── record_list.csv
-├── waveform_note_links.csv
-└── RECORDS
-```
+### Model Comparators
 
-Raw MIMIC data must stay outside this repository.
+1. **Model `A` (Traditional Baseline):** [Cardiac Infarction/Injury Score (CIIS)](reports/traditional-score-validation.md) — an established deterministic rule-based score mapping 12-lead features to continuous points and 4 clinical categories (Normal, Borderline, Possible Injury, Probable Infarction).
+2. **Model `B` (Multimodal Foundation):** [D-BETA](reports/dbeta-smoke-test.md) (ICML 2025) — frozen 768-d transformer encoder paired with an $L_2$-regularized linear probe trained on development-split mortality outcomes.
+3. **Secondary Engineering Prototype:** [CarDSLab ECG-CLIP BEiT](reports/cards-clip-smoke-test.md) — 2D image transformer extracting 512-d representations from rendered 12-lead grid tracings.
 
-## Proposed Initial Outcome
+### Research Guardrail: In-Domain Probing Disclosure
 
-Primary pilot endpoint:
+Candidate foundation models (D-BETA, ECG-CLIP) included MIMIC-IV-ECG during pretraining. In accordance with strict scientific integrity standards:
+- All findings are classified as **In-Domain Representation Probing**.
+- No claims of independent external validation are made.
+- Multi-center external validation (e.g. PTB-XL, CODE, UK Biobank) is outlined in [`reports/research-interpretation.md`](reports/research-interpretation.md).
 
-**30-day all-cause mortality after the index ECG**
+---
 
-Secondary endpoints may include:
+## 5. Quickstart & CLI Orchestration
 
-- in-hospital mortality;
-- 90-day mortality;
-- 1-year mortality where follow-up is supportable.
+This repository provides a unified, reproducible CLI `ecg-alignment` registered via `uv`.
 
-Outcome data come from MIMIC-IV and are never used as predictor inputs.
+### 1. Installation
 
-## Analysis Sketch
-
-For each patient:
-
-```text
-A = traditional continuous ECG score
-B = transformer-derived continuous ECG score
-Y = clinical outcome
-```
-
-Primary analyses:
-
-1. global correlation and score alignment;
-2. global AUROC/AUPRC;
-3. distribution of `B` within published `A` risk categories;
-4. outcome gradients across `B` within fixed `A` categories;
-5. `A-low/B-high` versus `A-low/B-low` discordance;
-6. incremental outcome information from `B` after conditioning on `A`.
-
-See [`docs/research-proposal.md`](docs/research-proposal.md) for the full design.
-
-## Repository Layout
-
-Planned structure:
-
-```text
-.
-├── README.md
-├── pyproject.toml
-├── docs/
-│   ├── research-proposal.md
-│   └── roadmap.md
-├── src/
-│   └── ecg_alignment/
-│       ├── analysis.py
-│       ├── cohort.py
-│       ├── data.py
-│       ├── outcomes.py
-│       ├── probe.py
-│       ├── split.py
-│       └── scoring/
-│           ├── base.py
-│           ├── cards_clip.py
-│           ├── dbeta.py
-│           ├── preprocess.py
-│           ├── pulse.py
-│           └── traditional.py
-├── tests/
-├── scripts/
-└── reports/
-```
-
-## Command-Line Interface & Execution
-
-This project provides a unified entrypoint `ecg-alignment` registered via `pyproject.toml` (and runnable directly via `uv run ecg-alignment` or `uv run python -m ecg_alignment.cli`).
-
-### Environment Variables & Path Resolution
-
-Paths can be configured via flags or environment variables:
-- `MIMIC_ROOT`: Path to MIMIC-IV root directory (default: `~/data/mimiciv/3.1`)
-- `MIMIC_ECG_ROOT` or `ECG_ROOT`: Path to MIMIC-IV-ECG root directory (default: `~/data/mimic-iv-ecg/1.0`)
-
-### Available Subcommands
+Clone the repository and sync dependencies:
 
 ```bash
-# 1. Stage 1 Data Inventory & Linkage Statistics
-uv run ecg-alignment inventory --report-out ./reports/inventory.md
-
-# 2. Stage 7 Primary Patient Cohort & Patient-Disjoint Split
-uv run ecg-alignment cohort --seed 42 --report-out ./reports/cohort-flow.md
-
-# 3. Stage 8 Frozen-Embedding Linear Probe
-uv run ecg-alignment probe --seed 42 --report-out ./reports/continuous-predictions.md
-
-# 4. Stage 9 Primary Statistical Analysis & Figure Generation
-uv run ecg-alignment analyze --output-dir ./reports --generate-figures
-
-# 5. Stage 10 Comprehensive Sensitivity & Robustness Battery
-uv run ecg-alignment sensitivity --report-out ./reports/sensitivity-analyses.md
-
-# 6. Stage 11 Research Interpretation & Translation Roadmap
-uv run ecg-alignment interpret --report-out ./reports/research-interpretation.md
-
-# 7. End-to-End Pipeline Execution (Stages 1-11)
-uv run ecg-alignment pipeline --output-dir ./reports
-```
-
-## Python Environment
-
-This project uses [`uv`](https://docs.astral.sh/uv/) for Python and dependency management.
-
-Initialize or synchronize the environment:
-
-```bash
+git clone https://github.com/SaehwanPark/ecg-model-alignment.git
+cd ecg-model-alignment
 uv sync
 ```
 
-Run tests:
+### 2. Configure Local Data Paths (Optional)
+
+By default, paths resolve to `~/data/mimiciv/3.1` and `~/data/mimic-iv-ecg/1.0`. You can override them via environment variables or CLI flags:
 
 ```bash
-uv run pytest
+export MIMIC_ROOT="/path/to/mimiciv/3.1"
+export MIMIC_ECG_ROOT="/path/to/mimic-iv-ecg/1.0"
 ```
 
-Run static type checking:
+### 3. Run the Research Pipeline
+
+Execute all stages end-to-end:
 
 ```bash
+uv run ecg-alignment pipeline --output-dir ./reports
+```
+
+Or run individual research stages:
+
+```bash
+# Data linkage inventory
+uv run ecg-alignment inventory --report-out ./reports/data-inventory.md
+
+# Cohort construction & patient-disjoint split
+uv run ecg-alignment cohort --seed 42 --report-out ./reports/cohort-flow.md
+
+# Linear probe training on frozen embeddings
+uv run ecg-alignment probe --seed 42 --report-out ./reports/continuous-predictions.md
+
+# Primary statistical analysis & figure generation
+uv run ecg-alignment analyze --output-dir ./reports --generate-figures
+
+# Comprehensive sensitivity battery (horizons, probes, strata)
+uv run ecg-alignment sensitivity --report-out ./reports/sensitivity-analyses.md
+
+# Research interpretation synthesis & validation roadmap
+uv run ecg-alignment interpret --report-out ./reports/research-interpretation.md
+```
+
+### 4. Run Quality Checks
+
+```bash
+# Run test suite
+uv run pytest
+
+# Run static type checking
 uv run basedpyright
 ```
 
-Do not create ad hoc Conda environments for project code. When upstream model repositories document Conda-based setup, translate the required Python dependencies into this project's `uv` environment or isolate the upstream reproduction separately.
+---
 
-## Hugging Face Models
-
-Model files are not committed to this repository.
-
-Authenticate with Hugging Face using your normal local Hugging Face credential mechanism. Never place access tokens in source files, notebooks, committed `.env` files, or GitHub issues.
-
-Current access status:
+## 6. Repository Structure
 
 ```text
-CarDSLab/ecg-clip-beit-base-384    granted
-Manhph2211/D-BETA                  pending
+ecg-model-alignment/
+├── docs/                        # Specifications, roadmap, and guides
+│   ├── development.md           # Coding standards, functional design, PR workflow
+│   ├── model-licenses.md        # Foundation model licensing and governance
+│   ├── research-proposal.md     # Full theoretical formulation & study design
+│   └── roadmap.md               # 12-stage milestone roadmap & exit criteria
+├── notebooks/                   # Interactive research walkthroughs
+│   ├── 01_research_flow_and_findings.ipynb
+│   └── README.md
+├── reports/                     # Staged validation reports and aggregate summaries
+│   ├── cohort-flow.md           # Stage 7 cohort flow and patient-disjoint splits
+│   ├── continuous-predictions.md# Stage 8 probe weights and calibration
+│   ├── data-inventory.md        # Stage 1 MIMIC linkage statistics
+│   ├── primary-results.md       # Stage 9 primary statistical analysis findings
+│   ├── research-interpretation.md # Stage 11 scientific synthesis and guardrails
+│   └── sensitivity-analyses.md  # Stage 10 sensitivity and robustness checks
+├── src/
+│   └── ecg_alignment/           # Core library
+│       ├── analysis.py          # Alignment, risk surfaces, LRT, bootstrap CIs
+│       ├── cli.py               # Unified CLI orchestration
+│       ├── cohort.py            # Cohort eligibility and index ECG selection
+│       ├── data.py              # Pure data loading and linkage
+│       ├── interpretation.py    # Guardrail synthesis and validation roadmap
+│       ├── outcomes.py          # 30-day mortality ascertainment
+│       ├── probe.py             # Frozen-embedding linear probe training
+│       ├── scoring/             # Traditional and transformer model adapters
+│       │   ├── cards_clip.py    # CarDSLab ECG-CLIP 2D vision adapter
+│       │   ├── dbeta.py         # D-BETA 1D waveform transformer adapter
+│       │   ├── preprocess.py    # Lead ordering, normalization, image rendering
+│       │   └── traditional.py   # Cardiac Infarction/Injury Score (CIIS)
+│       ├── sensitivity.py       # Multi-horizon and subgroup sensitivity suite
+│       └── split.py             # Deterministic patient-disjoint partitioner
+├── tests/                       # Comprehensive test suite (152+ tests)
+└── pyproject.toml               # Project dependencies and tool configurations
 ```
 
-Always record the exact model repository revision used for an experiment.
+---
 
-## Development Standards
+## 7. Documentation & Governance Index
 
-### Dependency management
+- 📘 [Contributor & Development Guide](docs/development.md): Indentation rules, functional style, type safety, and PR process.
+- 📋 [Research Proposal](docs/research-proposal.md): Complete scientific design, hypothesis formulation, and statistical plan.
+- 🗺️ [Staged Project Roadmap](docs/roadmap.md): Detailed 12-stage implementation record with audit gates.
+- ⚖️ [Model Licenses & Governance](docs/model-licenses.md): Compliance audit for D-BETA, ECG-CLIP, and PULSE.
+- 📊 [Validation Reports Index](reports/README.md): Master index of all empirical findings and sensitivity checks.
 
-Use `uv` for:
+---
 
-- Python versions;
-- project dependencies;
-- development dependencies;
-- command execution.
+## 8. Key References
 
-Prefer:
-
-```bash
-uv add <package>
-uv add --dev <package>
-uv run <command>
-```
-
-over direct `pip install` commands.
-
-### Indentation
-
-Use **2 spaces** for indentation/tab size throughout the repository, including Python.
-
-Recommended `.editorconfig`:
-
-```ini
-root = true
-
-[*]
-charset = utf-8
-end_of_line = lf
-insert_final_newline = true
-indent_style = space
-indent_size = 2
-```
-
-Do not run formatters that silently rewrite Python indentation to a conflicting style.
-
-### Functional-style Python
-
-Prefer functional composition over stateful object hierarchies.
-
-Good defaults:
-
-- pure functions for transformations;
-- explicit function inputs and outputs;
-- immutable configuration where practical;
-- no hidden mutable global state;
-- side effects isolated to I/O/model-loading boundaries;
-- deterministic transformations;
-- small model adapters instead of deep inheritance;
-- functions ordered topologically where practical, with dependencies before callers.
-
-Example:
-
-```python
-from collections.abc import Sequence
-
-import numpy as np
-import numpy.typing as npt
-
-
-def select_leads(
-  signal: npt.NDArray[np.float32],
-  indices: Sequence[int],
-) -> npt.NDArray[np.float32]:
-  return signal[np.asarray(indices)]
-
-
-def normalize_signal(
-  signal: npt.NDArray[np.float32],
-) -> npt.NDArray[np.float32]:
-  scale = np.maximum(np.std(signal, axis=1, keepdims=True), 1e-8)
-  return signal / scale
-
-
-def prepare_ecg(
-  signal: npt.NDArray[np.float32],
-  indices: Sequence[int],
-) -> npt.NDArray[np.float32]:
-  selected = select_leads(signal, indices)
-  return normalize_signal(selected)
-```
-
-### Testing
-
-Reusable code requires tests.
-
-Use:
-
-```bash
-uv run pytest
-```
-
-Prioritize tests for:
-
-- cohort boundary conditions;
-- time-window logic;
-- patient-disjoint splitting;
-- ECG shape and lead order;
-- scoring thresholds;
-- deterministic preprocessing;
-- model-output dimensions;
-- technical failure handling.
-
-Tests should use synthetic or openly shareable fixtures. Do not commit row-level MIMIC data as test fixtures.
-
-### Static typing
-
-Use:
-
-```bash
-uv run basedpyright
-```
-
-Type public functions and data contracts.
-
-Avoid using `Any` as an easy escape from unclear interfaces. Narrow external-library types at adapter boundaries when necessary.
-
-## Pull Request Workflow
-
-Every substantive task should be implemented on a branch and opened as a pull request.
-
-PR descriptions should answer:
-
-```text
-## What problem does this PR solve?
-
-## What approach did you take?
-
-## What assumptions did you make?
-
-## How did you test it?
-
-## Example output
-```
-
-A PR should be reviewable without requiring the reviewer to infer paths, assumptions, or expected output.
-
-Before opening a PR:
-
-```bash
-uv run pytest
-uv run basedpyright
-```
-
-## Data and Security
-
-Never commit:
-
-- MIMIC-IV data;
-- MIMIC-IV-ECG data;
-- derived row-level patient datasets;
-- Hugging Face tokens;
-- local credentials;
-- model access secrets.
-
-Reusable code should receive dataset roots from explicit configuration or CLI arguments rather than hard-coded user-specific paths.
-
-For example:
-
-```bash
-uv run python -m ecg_alignment.cli   --ecg-root ~/data/mimic-iv-ecg/1.0   --mimic-root ~/data/mimiciv/3.1
-```
-
-## Reproducibility Policy
-
-Every analysis should record:
-
-- Git commit;
-- Python version;
-- dependency lock state;
-- model repository and exact revision;
-- model license/access status;
-- cohort definition;
-- random seed;
-- outcome definition;
-- traditional-score implementation version;
-- analysis configuration.
-
-The final test set must remain untouched until the model probe and analysis specification are frozen.
-
-## Interpretation Boundary
-
-Several candidate transformer models were pretrained using MIMIC-IV-ECG.
-
-Accordingly, this repository initially supports an **in-domain probing experiment**:
-
-> Does a multimodally pretrained transformer representation encode MIMIC ECG risk information that is aligned with or complementary to a traditional ECG score?
-
-It should not be described as independent external validation unless the selected model is confirmed not to have used the evaluation ECGs during pretraining.
-
-## Project Documents
-
-- [Research proposal](docs/research-proposal.md)
-- [Staged roadmap](docs/roadmap.md)
-- [Model licenses & data governance](docs/model-licenses.md)
-
-## Key References
-
-- Pham Hung M, Saeed A, Ma D. *Boosting Masked ECG-Text Auto-Encoders as Discriminative Learners.* ICML 2025. https://proceedings.mlr.press/v267/pham-hung25a.html
-- D-BETA: https://github.com/manhph2211/D-BETA
-- CarDSLab ECG-CLIP BEiT: https://huggingface.co/CarDSLab/ecg-clip-beit-base-384
-- TARGET-AI: https://doi.org/10.1101/2025.08.25.25334266
-- Liu R, Bai Y, Yue X, et al. *Teaching multimodal LLMs to comprehend 12-lead electrocardiographic images.* npj Digital Medicine. 2026. https://doi.org/10.1038/s41746-026-02551-3
-- MIMIC-IV-ECG: https://mimic.mit.edu/docs/iv/modules/ecg/
-- MIMIC-IV: https://mimic.mit.edu/docs/iv/
+1. **D-BETA:** Pham Hung M, Saeed A, Ma D. *Boosting Masked ECG-Text Auto-Encoders as Discriminative Learners.* ICML 2025. [Link](https://proceedings.mlr.press/v267/pham-hung25a.html)
+2. **CIIS:** Rautaharju PM, et al. *Cardiac Infarction Injury Score: An electrocardiographic coding scheme for ischemic heart disease.* Circulation. 1981.
+3. **CarDSLab ECG-CLIP:** TARGET-AI consortium. *ECG-CLIP BEiT Base.* [Hugging Face](https://huggingface.co/CarDSLab/ecg-clip-beit-base-384) (2025).
+4. **PULSE:** Liu R, Bai Y, Yue X, et al. *Teaching multimodal LLMs to comprehend 12-lead electrocardiographic images.* npj Digital Medicine. 2026.
+5. **MIMIC-IV-ECG:** Gow B, et al. *MIMIC-IV-ECG: Diagnostic Electrocardiography Database.* PhysioNet. 2023.
