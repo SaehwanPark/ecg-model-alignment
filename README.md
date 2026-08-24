@@ -37,15 +37,15 @@ Rather than solely asking if foundation models achieve a higher overall AUROC, t
 
 ## 2. Key Empirical Findings
 
-All primary analyses were evaluated on the **untouched holdout test partition** ($N = 32,256$ unique patients, 1,842 events, 5.71% baseline mortality rate).
+All primary analyses were evaluated on the **untouched holdout test partition** ($N = 32,256$ unique patients, 941 events, 2.92% baseline mortality rate).
 
 | Research Question | Metric / Finding | Empirical Value (95% Bootstrap CI) | Interpretation |
 | :--- | :--- | :--- | :--- |
-| **1. Score Alignment** | Spearman Rank Correlation ($ho$) | **$ho = 0.512$** ($p < 10^{-15}$) | **Moderate Alignment**; shared variance ~26%, retaining substantial independent capacity. |
+| **1. Score Alignment** | Spearman Rank Correlation ($\rho$) | **$\rho = 0.512$** ($p < 10^{-15}$) | **Moderate Alignment**; transformer representation partially recovers classical injury patterns while retaining complementary capacity. |
 | **2. Global Discrimination** | 30-Day Mortality AUROC | Model A: **0.691** (0.678–0.704)<br>Model B: **0.778** (0.767–0.790) | Model B improves AUROC by **+0.0872** ($p < 0.001$) and AUPRC by **+0.0897**. |
 | **3. Residual Risk Gradients** | Within-Category Tertile Spread ($T_3 / T_1$) | **2.86x** (Normal CIIS)<br>**2.78x** (Borderline CIIS)<br>**2.51x** (Possible Injury)<br>**2.36x** (Probable Infarction) | Model B stratifies mortality from **1.82% to 5.20%** even among electrophysiologically *Normal* patients. |
-| **4. Informative Discordance** | Occult High-Risk ($A_{\\text{low}} / B_{\\text{high}}$) vs Baseline ($A_{\\text{low}} / B_{\\text{low}}$) | Risk Difference: **+4.13%**<br>Relative Risk: **2.35x** (95% CI: 2.10–2.63) | Identifies a high-risk group (29.7% of cohort) invisible to conventional CIIS rules. |
-| **5. Incremental Prognosis** | Nested Likelihood Ratio Test ($Y \\sim f(A) + B$ vs $Y \\sim f(A)$) | **$\\Delta G^2 = 384.62$** ($p < 10^{-15}$)<br>$\\Delta\\text{AUROC} = +0.0886$ | Transformer representation provides undeniable orthogonal prognostic value. |
+| **4. Informative Discordance** | Occult High-Risk ($A_{\text{low}} / B_{\text{high}}$) vs Baseline ($A_{\text{low}} / B_{\text{low}}$) | Risk Difference: **+4.13%**<br>Relative Risk: **2.35x** (95% CI: 2.10–2.63) | Identifies a high-risk group (29.7% of cohort) invisible to conventional CIIS rules. |
+| **5. Incremental Prognosis** | Nested Likelihood Ratio Test ($Y \sim f(A) + B$ vs $Y \sim f(A)$) | **$\Delta G^2 = 384.62$** ($p < 10^{-15}$)<br>$\Delta\text{AUROC} = +0.0886$ | Transformer representation provides statistically robust incremental prognostic value. |
 
 > Detailed validation statistics, calibration curves, and subgroup analyses are cataloged in [`reports/primary-results.md`](reports/primary-results.md) and [`reports/research-interpretation.md`](reports/research-interpretation.md).
 

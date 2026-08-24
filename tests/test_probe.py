@@ -22,6 +22,10 @@ from ecg_alignment.probe import (
   extract_transformer_embeddings,
   fit_logistic_probe,
   generate_continuous_predictions_markdown,
+  generate_run_manifest,
+  load_unified_prediction_table,
+  save_run_manifest,
+  save_unified_prediction_table,
   score_traditional_cohort,
   score_transformer_cohort,
   verify_predictor_firewall,
@@ -496,4 +500,70 @@ def test_extract_transformer_embeddings_and_traditional_cohort(monkeypatch: pyte
   assert len(scored_a) == 2
   assert scored_a["model_a_valid"][1] is False
   assert "NaN or Infinite" in (scored_a["model_a_error"][1] or "")
+
+
+def test_unified_prediction_table_persistence(tmp_path: Path) -> None:
+  clean_df = pl.DataFrame({
+    "subject_id": [1, 2],
+    "study_id": [101, 102],
+    "split": ["dev", "test"],
+    "model_a_score": [5.0, 12.0],
+    "model_a_category": ["normal", "borderline"],
+    "model_a_valid": [True, True],
+    "model_a_error": [None, None],
+    "model_b_score": [0.03, 0.08],
+    "model_b_log_odds": [-3.5, -2.4],
+    "model_b_valid": [True, True],
+    "model_b_error": [None, None],
+    "mortality_30d": [False, True],
+  })
+
+  parquet_path = tmp_path / "predictions.parquet"
+  save_unified_prediction_table(clean_df, parquet_path)
+  assert parquet_path.exists()
+
+  loaded = load_unified_prediction_table(parquet_path)
+  assert len(loaded) == 2
+  assert loaded["model_a_score"].to_list() == [5.0, 12.0]
+  assert loaded["mortality_30d"].to_list() == [False, True]
+
+
+def test_run_manifest_generation(tmp_path: Path) -> None:
+  clean_df = pl.DataFrame({
+    "subject_id": [1, 2],
+    "study_id": [101, 102],
+    "split": ["dev", "test"],
+    "model_a_score": [5.0, 12.0],
+    "model_a_category": ["normal", "borderline"],
+    "model_a_valid": [True, True],
+    "model_a_error": [None, None],
+    "model_b_score": [0.03, 0.08],
+    "model_b_log_odds": [-3.5, -2.4],
+    "model_b_valid": [True, True],
+    "model_b_error": [None, None],
+    "mortality_30d": [False, True],
+  })
+  probe = TrainedProbe(
+    coefficients=(0.1, 0.2),
+    intercept=-1.0,
+    best_c=1.0,
+    tuning_history=(),
+    scaler_mean=(0.0, 0.0),
+    scaler_scale=(1.0, 1.0),
+    config=ProbeConfig(model_name="dbeta"),
+  )
+
+  manifest = generate_run_manifest(clean_df, probe=probe, seed=42)
+  assert manifest["cohort_counts"]["total_patients"] == 2
+  assert manifest["cohort_counts"]["dev_patients"] == 1
+  assert manifest["cohort_counts"]["test_patients"] == 1
+  assert manifest["probe_best_c"] == 1.0
+  assert manifest["seed"] == 42
+
+  manifest_file = tmp_path / "run_manifest.json"
+  save_run_manifest(manifest, manifest_file)
+  assert manifest_file.exists()
+  with open(manifest_file, "r", encoding="utf-8") as f:
+    data = json.load(f)
+  assert data["cohort_counts"]["total_patients"] == 2
 

@@ -73,6 +73,7 @@ class GlobalAlignmentResult:
   risk_surface_a_bins: tuple[float, ...]
   risk_surface_b_bins: tuple[float, ...]
   risk_surface_matrix: tuple[tuple[float, ...], ...]
+  risk_surface_counts: tuple[tuple[int, ...], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -543,20 +544,24 @@ def compute_global_alignment(
     a_bins = np.unique(a_quantiles)
     b_bins = np.unique(b_quantiles)
 
-    risk_matrix = np.zeros((len(a_bins) - 1, len(b_bins) - 1), dtype=np.float64)
+    risk_matrix = np.full((len(a_bins) - 1, len(b_bins) - 1), np.nan, dtype=np.float64)
+    count_matrix = np.zeros((len(a_bins) - 1, len(b_bins) - 1), dtype=np.int64)
     for i in range(len(a_bins) - 1):
       a_mask = (a_arr >= a_bins[i]) & (a_arr <= a_bins[i + 1] if i == len(a_bins) - 2 else a_arr < a_bins[i + 1])
       for j in range(len(b_bins) - 1):
         b_mask = (b_arr >= b_bins[j]) & (b_arr <= b_bins[j + 1] if j == len(b_bins) - 2 else b_arr < b_bins[j + 1])
         cell_mask = a_mask & b_mask
-        if np.sum(cell_mask) > 0:
+        n_cell = int(np.sum(cell_mask))
+        count_matrix[i, j] = n_cell
+        if n_cell > 0:
           risk_matrix[i, j] = float(np.mean(yt[cell_mask]))
         else:
-          risk_matrix[i, j] = float(np.mean(yt))
+          risk_matrix[i, j] = np.nan
   else:
     a_bins = np.linspace(a_min, a_max, n_surface_bins + 1)
     b_bins = np.linspace(float(np.min(b_arr)), float(np.max(b_arr)), n_surface_bins + 1)
-    risk_matrix = np.zeros((n_surface_bins, n_surface_bins), dtype=np.float64)
+    risk_matrix = np.full((n_surface_bins, n_surface_bins), np.nan, dtype=np.float64)
+    count_matrix = np.zeros((n_surface_bins, n_surface_bins), dtype=np.int64)
 
   return GlobalAlignmentResult(
     spearman_rho=spearman_rho,
@@ -568,6 +573,7 @@ def compute_global_alignment(
     risk_surface_a_bins=tuple(float(x) for x in a_bins),
     risk_surface_b_bins=tuple(float(y) for y in b_bins),
     risk_surface_matrix=tuple(tuple(float(cell) for cell in row) for row in risk_matrix),
+    risk_surface_counts=tuple(tuple(int(c) for c in row) for row in count_matrix),
   )
 
 
@@ -957,6 +963,8 @@ def compute_discordance_analysis(
   # Primary Contrast: P(Y=1 | A-low, B-high) - P(Y=1 | A-low, B-low)
   mask_alow_blow = quad_masks["A-low / B-low"]
   mask_alow_bhigh = quad_masks["A-low / B-high"]
+  mask_ahigh_blow = quad_masks["A-high / B-low"]
+  mask_ahigh_bhigh = quad_masks["A-high / B-high"]
 
   r_blow = float(np.mean(yt[mask_alow_blow])) if np.sum(mask_alow_blow) > 0 else 0.0
   r_bhigh = float(np.mean(yt[mask_alow_bhigh])) if np.sum(mask_alow_bhigh) > 0 else 0.0
@@ -964,10 +972,15 @@ def compute_discordance_analysis(
   diff_point = r_bhigh - r_blow
   ratio_point = (r_bhigh / r_blow) if r_blow > 0 else 1.0
 
+  r_ahigh_blow = float(np.mean(yt[mask_ahigh_blow])) if np.sum(mask_ahigh_blow) > 0 else 0.0
+  r_ahigh_bhigh = float(np.mean(yt[mask_ahigh_bhigh])) if np.sum(mask_ahigh_bhigh) > 0 else 0.0
+  diff_ahigh_point = r_ahigh_bhigh - r_ahigh_blow
+
   # Bootstrap Risk Difference & Ratio
   rng = np.random.default_rng(random_seed)
   diffs_boot: list[float] = []
   ratios_boot: list[float] = []
+  diffs_ahigh_boot: list[float] = []
   n_pts = len(yt)
 
   for _ in range(n_bootstraps):
@@ -975,6 +988,8 @@ def compute_discordance_analysis(
     yt_b = yt[idx]
     m_blow_b = mask_alow_blow[idx]
     m_bhigh_b = mask_alow_bhigh[idx]
+    m_ahigh_blow_b = mask_ahigh_blow[idx]
+    m_ahigh_bhigh_b = mask_ahigh_bhigh[idx]
 
     if np.sum(m_blow_b) > 0 and np.sum(m_bhigh_b) > 0:
       rb0 = float(np.mean(yt_b[m_blow_b]))
@@ -983,30 +998,34 @@ def compute_discordance_analysis(
       if rb0 > 0:
         ratios_boot.append(rb1 / rb0)
 
+    if np.sum(m_ahigh_blow_b) > 0 and np.sum(m_ahigh_bhigh_b) > 0:
+      rah0 = float(np.mean(yt_b[m_ahigh_blow_b]))
+      rah1 = float(np.mean(yt_b[m_ahigh_bhigh_b]))
+      diffs_ahigh_boot.append(rah1 - rah0)
+
   alpha = (1.0 - DEFAULT_CONFIDENCE_LEVEL) / 2.0
   diff_ci = BootstrapConfidenceInterval(
     point_estimate=diff_point,
     ci_lower=float(np.percentile(diffs_boot, 100.0 * alpha)) if diffs_boot else diff_point,
     ci_upper=float(np.percentile(diffs_boot, 100.0 * (1.0 - alpha))) if diffs_boot else diff_point,
+    confidence_level=DEFAULT_CONFIDENCE_LEVEL,
+    n_bootstraps=n_bootstraps,
   )
 
   ratio_ci = BootstrapConfidenceInterval(
     point_estimate=ratio_point,
     ci_lower=float(np.percentile(ratios_boot, 100.0 * alpha)) if ratios_boot else ratio_point,
     ci_upper=float(np.percentile(ratios_boot, 100.0 * (1.0 - alpha))) if ratios_boot else ratio_point,
+    confidence_level=DEFAULT_CONFIDENCE_LEVEL,
+    n_bootstraps=n_bootstraps,
   )
-
-  # Contrast in A-high
-  mask_ahigh_blow = quad_masks["A-high / B-low"]
-  mask_ahigh_bhigh = quad_masks["A-high / B-high"]
-  r_ahigh_blow = float(np.mean(yt[mask_ahigh_blow])) if np.sum(mask_ahigh_blow) > 0 else 0.0
-  r_ahigh_bhigh = float(np.mean(yt[mask_ahigh_bhigh])) if np.sum(mask_ahigh_bhigh) > 0 else 0.0
-  diff_ahigh_point = r_ahigh_bhigh - r_ahigh_blow
 
   diff_ahigh_ci = BootstrapConfidenceInterval(
     point_estimate=diff_ahigh_point,
-    ci_lower=diff_ahigh_point,
-    ci_upper=diff_ahigh_point,
+    ci_lower=float(np.percentile(diffs_ahigh_boot, 100.0 * alpha)) if diffs_ahigh_boot else diff_ahigh_point,
+    ci_upper=float(np.percentile(diffs_ahigh_boot, 100.0 * (1.0 - alpha))) if diffs_ahigh_boot else diff_ahigh_point,
+    confidence_level=DEFAULT_CONFIDENCE_LEVEL,
+    n_bootstraps=n_bootstraps,
   )
 
   return DiscordanceResult(
@@ -1255,10 +1274,16 @@ def run_primary_analysis(
     random_seed=random_seed + 10,
   )
 
-  # Fit a calibrated logistic model for A probabilities to allow fair brier/log-loss comparison
-  clf_a = LogisticRegression(C=1e9, solver="lbfgs")
-  clf_a.fit(a_scores.reshape(-1, 1), y_test)
-  probs_a_cal = clf_a.predict_proba(a_scores.reshape(-1, 1))[:, 1]
+  # Fit a calibrated logistic model for A probabilities strictly on DEVELOPMENT data to prevent test leakage
+  y_dev = dev_df[outcome_col].cast(pl.Int64).to_numpy()
+  a_dev = dev_df["model_a_score"].cast(pl.Float64).to_numpy()
+  if len(y_dev) > 0 and len(np.unique(y_dev)) >= 2:
+    clf_a = LogisticRegression(C=1e9, solver="lbfgs")
+    clf_a.fit(a_dev.reshape(-1, 1), y_dev)
+    probs_a_cal = clf_a.predict_proba(a_scores.reshape(-1, 1))[:, 1]
+  else:
+    a_min, a_max = float(np.min(a_scores)), float(np.max(a_scores))
+    probs_a_cal = (a_scores - a_min) / (a_max - a_min) if a_max > a_min else np.full_like(a_scores, 0.5)
 
   comparison = compare_models_performance(
     y_test,

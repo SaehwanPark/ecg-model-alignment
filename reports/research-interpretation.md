@@ -34,7 +34,7 @@ flowchart TD
 ### Question 1: Global Score Alignment
 - **Empirical Alignment:** Spearman rank correlation $\rho = 0.512$ ($p < 10^{-15}$), Pearson $r = 0.494$ ($p < 10^{-15}$).
 - **Prespecified Classification:** **MODERATE ALIGNMENT** ($0.30 \le |\rho| < 0.70$).
-- **Interpretation:** Spearman rho = 0.512 indicates moderate alignment ($0.30 \le |\rho| < 0.70$), demonstrating that the modern transformer representation partially recovers classical electrophysiologic injury patterns (shared variance ~26%) while retaining substantial unique representation capacity.
+- **Interpretation:** Spearman rho = 0.512 indicates moderate alignment ($0.30 \le |\rho| < 0.70$), demonstrating that the modern transformer representation partially recovers classical electrophysiologic injury patterns while retaining substantial complementary representation capacity.
 
 ### Question 2: Residual Risk Within Traditional Strata
 - **Summary Finding:** Model B consistently uncovers substantial residual risk gradients across all 4 traditional CIIS risk categories (mean gradient ratio 2.63x). Even among electrophysiologically Normal patients, Model B identifies a near 3-fold mortality spread.
@@ -67,7 +67,7 @@ flowchart TD
 
 > RESEARCH BOUNDARY: The findings in this study establish that multimodal transformer representations contain strong, statistically robust incremental prognostic information beyond traditional ECG scores. They do NOT establish clinical utility, therapeutic efficacy, or readiness for autonomous clinical deployment.
 
-1. **Statistical Demonstration:** Statistical evaluation demonstrates highly significant incremental prognostic information (Nested Likelihood Ratio Test $\Delta G^2 = 384.62$, $p < 10^{-15}$; $\Delta\text{AUROC} = +0.0872$, $\Delta\text{Brier} = +0.0039$). Model B adds undeniable variance beyond flexible $f(A)$.
+1. **Statistical Demonstration:** Statistical evaluation demonstrates highly significant incremental prognostic information (Nested Likelihood Ratio Test $\Delta G^2 = 384.62$, $p < 10^{-15}$; $\Delta\text{AUROC} = +0.0872$, $\Delta\text{Brier} = +0.0039$). Model B provides incremental prognostic signal beyond flexible $f(A)$.
 2. **The Clinical Gap:** However, statistical incremental value does NOT equate to clinical bedside utility. Demonstrating that an AI score improves likelihood-ratio chi-square or AUROC is a necessary prerequisite, but is insufficient to prove clinical efficacy, net benefit, or safety in patient care.
 
 ### Required Evidence for Bedside Deployment
