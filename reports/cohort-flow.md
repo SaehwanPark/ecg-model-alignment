@@ -41,14 +41,6 @@ flowchart TD
 | **Final Test (`test`)** | 20.0% | 32,256 | 32,256 | 20.00% |
 | **Total Primary Analytic Cohort** | 100.0% | 161,279 | 161,279 | 100.00% |
 
-### Outcome Event Rate Balance Across Partitions
-
-| Endpoint | Development (`dev`) | Validation (`val`) | Final Test (`test`) | Overall Cohort |
-| :--- | :--- | :--- | :--- | :--- |
-| **30-day Mortality (Primary)** | 2,854 (2.95%) | 906 (2.81%) | 941 (2.92%) | 4,701 (2.91%) |
-| **90-day Mortality** | 4,539 (4.69%) | 1,473 (4.57%) | 1,497 (4.64%) | 7,509 (4.66%) |
-| **1-year Mortality** | 7,913 (8.18%) | 2,618 (8.12%) | 2,568 (7.96%) | 13,099 (8.12%) |
-
 ---
 
 ## 3. Strict Patient-Disjoint Verification

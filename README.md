@@ -35,19 +35,23 @@ Rather than solely asking if foundation models achieve a higher overall AUROC, t
 
 ---
 
-## 2. Key Empirical Findings
+## 2. Empirical Findings & Provenance Status
 
-All primary analyses were evaluated on the **untouched holdout test partition** ($N = 32,256$ unique patients, 941 events, 2.92% baseline mortality rate).
-
-| Research Question | Metric / Finding | Empirical Value (95% Bootstrap CI) | Interpretation |
-| :--- | :--- | :--- | :--- |
-| **1. Score Alignment** | Spearman Rank Correlation ($\rho$) | **$\rho = 0.512$** ($p < 10^{-15}$) | **Moderate Alignment**; transformer representation partially recovers classical injury patterns while retaining complementary capacity. |
-| **2. Global Discrimination** | 30-Day Mortality AUROC | Model A: **0.691** (0.678–0.704)<br>Model B: **0.778** (0.767–0.790) | Model B improves AUROC by **+0.0872** ($p < 0.001$) and AUPRC by **+0.0897**. |
-| **3. Residual Risk Gradients** | Within-Category Tertile Spread ($T_3 / T_1$) | **2.86x** (Normal CIIS)<br>**2.78x** (Borderline CIIS)<br>**2.51x** (Possible Injury)<br>**2.36x** (Probable Infarction) | Model B stratifies mortality from **1.82% to 5.20%** even among electrophysiologically *Normal* patients. |
-| **4. Informative Discordance** | Occult High-Risk ($A_{\text{low}} / B_{\text{high}}$) vs Baseline ($A_{\text{low}} / B_{\text{low}}$) | Risk Difference: **+4.13%**<br>Relative Risk: **2.35x** (95% CI: 2.10–2.63) | Identifies a high-risk group (29.7% of cohort) invisible to conventional CIIS rules. |
-| **5. Incremental Prognosis** | Nested Likelihood Ratio Test ($Y \sim f(A) + B$ vs $Y \sim f(A)$) | **$\Delta G^2 = 384.62$** ($p < 10^{-15}$)<br>$\Delta\text{AUROC} = +0.0886$ | Transformer representation provides statistically robust incremental prognostic value. |
-
-> Detailed validation statistics, calibration curves, and subgroup analyses are cataloged in [`reports/primary-results.md`](reports/primary-results.md) and [`reports/research-interpretation.md`](reports/research-interpretation.md).
+> [!NOTE]
+> **Empirical full-cohort run pending regeneration after pipeline provenance audit.**
+>
+> The core pipeline is fail-closed, data-firewalled, and provenance-verified. Formal numerical findings in [`reports/primary-results.md`](reports/primary-results.md) and [`reports/research-interpretation.md`](reports/research-interpretation.md) are generated dynamically through `ecg-alignment pipeline` and require genuine MIMIC-IV WFDB waveforms (or explicit `--simulate` mode).
+>
+> To execute the reproducible pipeline on local data:
+> ```bash
+> uv run ecg-alignment pipeline --mimic-root ~/data/mimiciv/3.1 --ecg-root ~/data/mimic-iv-ecg/1.0
+> ```
+>
+> Key hypotheses under empirical evaluation:
+> - **H1 (Partial Alignment):** Positive rank correlation ($\rho > 0$) between traditional CIIS score and transformer representation.
+> - **H2 (Residual Risk Gradients):** Meaningful within-stratum mortality gradients across transformer tertiles within fixed CIIS categories.
+> - **H3 (Informative Discordance):** Elevated acute mortality among patients in the discordant $A_{\text{low}} / B_{\text{high}}$ quadrant relative to $A_{\text{low}} / B_{\text{low}}$.
+> - **H4 (Incremental Prognosis):** Statistically robust improvement in held-out discrimination ($\Delta\text{AUROC}$) and log-loss reduction when adding Model B to flexible $f(A)$.
 
 ---
 

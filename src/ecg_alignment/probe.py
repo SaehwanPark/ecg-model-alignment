@@ -932,6 +932,7 @@ def generate_continuous_predictions_markdown(
   summary_stats: dict[str, Any],
   probe: TrainedProbe | None = None,
   title: str = "MIMIC-IV Continuous Prediction Generation and Probe Validation Report",
+  data_mode: Literal["real", "simulation"] | str = "real",
 ) -> str:
   """Generate a comprehensive Markdown report documenting continuous score generation and probe validation.
 
@@ -939,14 +940,22 @@ def generate_continuous_predictions_markdown(
     summary_stats: Aggregate metrics from compute_prediction_summary_statistics.
     probe: Optional TrainedProbe instance with tuning history.
     title: Report title.
+    data_mode: Data provenance mode ('real' or 'simulation').
 
   Returns:
     Markdown string.
   """
   total_pts = summary_stats.get("total_patients", 0)
+  provenance_banner = (
+    "> **Data Source:** REAL MIMIC-IV-ECG predictions"
+    if str(data_mode).lower() == "real"
+    else "> **Data Source:** SIMULATION — NOT EMPIRICAL RESULTS"
+  )
 
   lines = [
     f"# {title}",
+    "",
+    provenance_banner,
     "",
     "**Stage:** Stage 8 — Build Continuous Predictions  ",
     "**Status:** Completed and Verified  ",
@@ -1135,6 +1144,88 @@ def load_unified_prediction_table(
       df = pl.read_csv(p)
   verify_unified_prediction_table(df)
   return df
+
+
+def find_companion_manifest(artifact_path: Path | str) -> Path | None:
+  """Search for a companion run manifest associated with a prediction table artifact."""
+  p = Path(artifact_path).expanduser().resolve()
+  candidates = [
+    p.parent / f"{p.name}.manifest.json",
+    p.parent / f"{p.stem}.manifest.json",
+    p.parent / "run_manifest.json",
+  ]
+  for cand in candidates:
+    if cand.exists() and cand.is_file():
+      return cand
+  return None
+
+
+def load_and_verify_unified_prediction_table(
+  path: Path | str,
+  requested_mode: Literal["real", "simulation"] | None = None,
+  allow_simulated_artifact: bool = False,
+  verify_checksum: bool = True,
+) -> pl.DataFrame:
+  """Load a unified prediction table artifact with fail-closed provenance verification.
+
+  Enforces:
+    1. Prediction table exists and schema is valid.
+    2. If a companion manifest exists, checks data_mode compatibility. A simulated
+       prediction table cannot be loaded in 'real' execution mode unless
+       `allow_simulated_artifact` is explicitly set to True.
+    3. If `predictions_artifact_sha256` is recorded in the companion manifest and
+       `verify_checksum` is True, verifies that the artifact file SHA-256 matches.
+
+  Args:
+    path: Path to the prediction artifact file (parquet, csv, ipc).
+    requested_mode: Execution mode ('real' or 'simulation').
+    allow_simulated_artifact: If True, permit simulated artifacts in real mode.
+    verify_checksum: If True, verify SHA-256 matches manifest if recorded.
+
+  Returns:
+    Verified Polars DataFrame.
+
+  Raises:
+    FileNotFoundError: If the prediction table does not exist.
+    ValueError: If provenance or checksum verification fails.
+  """
+  p = Path(path).expanduser().resolve()
+  if not p.exists():
+    raise FileNotFoundError(f"Prediction table not found at: {p}")
+
+  manifest_path = find_companion_manifest(p)
+  if manifest_path is not None:
+    try:
+      with open(manifest_path, "r", encoding="utf-8") as f:
+        manifest_data = json.load(f)
+
+      artifact_mode = manifest_data.get("data_mode")
+      if (
+        requested_mode == "real"
+        and artifact_mode == "simulation"
+        and not allow_simulated_artifact
+      ):
+        raise ValueError(
+          f"Prediction artifact at '{p}' was generated in 'simulation' mode (recorded in {manifest_path.name}), "
+          "but execution was requested in 'real' mode. Real execution requires genuine empirical predictions. "
+          "Pass --simulate or --allow-simulated-artifact if simulated evaluation is intended."
+        )
+
+      if verify_checksum:
+        recorded_sha = manifest_data.get("predictions_artifact_sha256")
+        if recorded_sha is not None:
+          actual_sha = compute_file_sha256(p)
+          if actual_sha != recorded_sha:
+            raise ValueError(
+              f"Prediction artifact integrity error: SHA-256 mismatch for '{p}'. "
+              f"Manifest records {recorded_sha}, but file has {actual_sha}."
+            )
+    except (ValueError, FileNotFoundError):
+      raise
+    except Exception:
+      pass
+
+  return load_unified_prediction_table(p)
 
 
 def get_current_git_sha() -> str | None:

@@ -20,9 +20,11 @@ from ecg_alignment.probe import (
   compute_brier_score,
   compute_prediction_summary_statistics,
   extract_transformer_embeddings,
+  find_companion_manifest,
   fit_logistic_probe,
   generate_continuous_predictions_markdown,
   generate_run_manifest,
+  load_and_verify_unified_prediction_table,
   load_unified_prediction_table,
   save_run_manifest,
   save_unified_prediction_table,
@@ -621,4 +623,76 @@ def test_extract_transformer_embeddings_batch_and_checkpoint(tmp_path: Path, mon
   loaded_ckpt = np.load(ckpt_file)
   assert "embeddings" in loaded_ckpt
   assert loaded_ckpt["processed_count"] == 4
+
+
+def test_load_and_verify_unified_prediction_table_provenance(tmp_path: Path) -> None:
+  """Test that loading simulated predictions in real mode fails closed unless permitted."""
+  clean_df = pl.DataFrame({
+    "subject_id": [1, 2],
+    "study_id": [101, 102],
+    "split": ["dev", "test"],
+    "model_a_score": [5.0, 12.0],
+    "model_a_category": ["normal", "borderline"],
+    "model_a_valid": [True, True],
+    "model_a_error": [None, None],
+    "model_b_score": [0.03, 0.08],
+    "model_b_log_odds": [-3.5, -2.4],
+    "model_b_valid": [True, True],
+    "model_b_error": [None, None],
+    "mortality_30d": [False, True],
+  })
+  parquet_path = tmp_path / "predictions.parquet"
+  save_unified_prediction_table(clean_df, parquet_path)
+
+  manifest = generate_run_manifest(clean_df, data_mode="simulation", predictions_path=parquet_path)
+  manifest_path = tmp_path / "run_manifest.json"
+  save_run_manifest(manifest, manifest_path)
+
+  assert find_companion_manifest(parquet_path) == manifest_path
+
+  # 1. Loading simulated artifact in real mode without override raises ValueError
+  with pytest.raises(ValueError, match="generated in 'simulation' mode"):
+    load_and_verify_unified_prediction_table(parquet_path, requested_mode="real")
+
+  # 2. Loading with allow_simulated_artifact=True succeeds
+  loaded_override = load_and_verify_unified_prediction_table(
+    parquet_path, requested_mode="real", allow_simulated_artifact=True
+  )
+  assert len(loaded_override) == 2
+
+  # 3. Loading with requested_mode="simulation" succeeds
+  loaded_sim = load_and_verify_unified_prediction_table(parquet_path, requested_mode="simulation")
+  assert len(loaded_sim) == 2
+
+
+def test_load_and_verify_checksum_integrity(tmp_path: Path) -> None:
+  """Test that artifact corruption triggers a checksum mismatch error."""
+  clean_df = pl.DataFrame({
+    "subject_id": [1, 2],
+    "study_id": [101, 102],
+    "split": ["dev", "test"],
+    "model_a_score": [5.0, 12.0],
+    "model_a_category": ["normal", "borderline"],
+    "model_a_valid": [True, True],
+    "model_a_error": [None, None],
+    "model_b_score": [0.03, 0.08],
+    "model_b_log_odds": [-3.5, -2.4],
+    "model_b_valid": [True, True],
+    "model_b_error": [None, None],
+    "mortality_30d": [False, True],
+  })
+  parquet_path = tmp_path / "predictions.parquet"
+  save_unified_prediction_table(clean_df, parquet_path)
+
+  manifest = generate_run_manifest(clean_df, data_mode="real", predictions_path=parquet_path)
+  manifest_path = tmp_path / "run_manifest.json"
+  save_run_manifest(manifest, manifest_path)
+
+  # Tamper with the artifact file
+  with open(parquet_path, "ab") as f:
+    f.write(b"corrupted_extra_bytes")
+
+  with pytest.raises(ValueError, match="integrity error: SHA-256 mismatch"):
+    load_and_verify_unified_prediction_table(parquet_path, requested_mode="real")
+
 

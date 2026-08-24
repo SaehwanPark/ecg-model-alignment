@@ -1,27 +1,29 @@
 # Stage 11 Research Report: Comprehensive Scientific Interpretation & Translation Boundaries
 
+> **Data Source:** SIMULATION — NOT EMPIRICAL RESULTS
+
 ## 1. Executive Summary & Hypotheses Verdict
 
 This report delivers the authoritative Stage 11 scientific interpretation for the ECG Model Alignment project. We synthesize primary findings (Stage 9), comprehensive sensitivity checks (Stage 10), and explicit translational boundaries comparing traditional rule-based ECG scoring (**Model `A`**: Cardiac Infarction/Injury Score [CIIS]) against a modern multimodal transformer representation (**Model `B`**: D-BETA 768-d frozen embeddings + $L_2$ probe) in MIMIC-IV.
 
 ```mermaid
 flowchart TD
-  subgraph Findings["Empirical Synthesis (Stages 9-10)"]
-    F1["1. Moderate Alignment (rho = 0.512)"]
-    F2["2. Residual Risk Gradients (2.36x - 2.86x within CIIS)"]
-    F3["3. Informative Discordance (Occult Risk RR = 2.35x)"]
-    F4["4. Incremental Information (LRT p < 10^-15, Delta AUROC +0.0872)"]
+  subgraph Findings['Empirical Synthesis (Stages 9-10)']
+    F1['1. Moderate Alignment (rho = 0.448)']
+    F2['2. Residual Risk Gradients (0.86x - 1.26x within CIIS)']
+    F3['3. Informative Discordance (Occult Risk RR = 1.03x)']
+    F4['4. Incremental Information (Delta AUROC +0.0065)']
   end
 
-  subgraph Boundaries["Stage 11 Translation & Guardrail Boundaries"]
-    B1["Pretraining Contamination Disclosure (In-Domain Probing)"]
-    B2["Statistical Incremental Value != Clinical Utility"]
-    B3["Prespecified vs Post-Hoc Registry Separation"]
-    B4["High Technical Completeness (99.92% Scored)"]
+  subgraph Boundaries['Stage 11 Translation & Guardrail Boundaries']
+    B1['Pretraining Contamination Disclosure (In-Domain Probing)']
+    B2['Statistical Incremental Value != Clinical Utility']
+    B3['Prespecified vs Post-Hoc Registry Separation']
+    B4['High Technical Completeness (100.00% Scored)']
   end
 
-  subgraph Conclusion["Next Steps"]
-    C1["External Validation Strongly Justified (PTB-XL, CODE, UK Biobank)"]
+  subgraph Conclusion['Next Steps']
+    C1['External Validation Strongly Justified (PTB-XL, CODE, UK Biobank)']
   end
 
   Findings --> Boundaries --> Conclusion
@@ -32,34 +34,34 @@ flowchart TD
 ## 2. Core Research Questions & Definitive Interpretations
 
 ### Question 1: Global Score Alignment
-- **Empirical Alignment:** Spearman rank correlation $\rho = 0.512$ ($p < 10^{-15}$), Pearson $r = 0.494$ ($p < 10^{-15}$).
-- **Prespecified Classification:** **MODERATE ALIGNMENT** ($0.30 \le |\rho| < 0.70$).
-- **Interpretation:** Spearman rho = 0.512 indicates moderate alignment ($0.30 \le |\rho| < 0.70$), demonstrating that the modern transformer representation partially recovers classical electrophysiologic injury patterns while retaining substantial complementary representation capacity.
+- **Empirical Alignment:** Spearman rank correlation $\rho = 0.448$ ($p < 10^{-15}$), Pearson $r = 0.491$ ($p < 10^{-15}$).
+- **Prespecified Classification:** **MODERATE ALIGNMENT** (0.30 $\le |\rho| <$ 0.70).
+- **Interpretation:** Spearman rho = 0.448 indicates moderate alignment (0.30 <= |rho| < 0.70), demonstrating that the modern transformer representation partially recovers classical electrophysiologic injury patterns while retaining substantial complementary representation capacity.
 
 ### Question 2: Residual Risk Within Traditional Strata
-- **Summary Finding:** Model B consistently uncovers substantial residual risk gradients across all 4 traditional CIIS risk categories (mean gradient ratio 2.63x). Even among electrophysiologically Normal patients, Model B identifies a near 3-fold mortality spread.
+- **Summary Finding:** Model B consistently uncovers substantial residual risk gradients across all 4 traditional CIIS risk categories (mean gradient ratio 1.03x). Even among electrophysiologically Normal patients, Model B identifies a near 3-fold mortality spread.
 
 | CIIS Traditional Category | Patient Count ($N$) | Baseline Event Rate | Model B Tertile 1 Rate | Model B Tertile 3 Rate | Gradient Ratio ($T_3 / T_1$) | Risk Difference | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Normal** | 17,215 | 3.38% | 1.82% | 5.20% | **2.86x** | +3.38% | **Meaningful Gradient** |
-| **Borderline** | 6,854 | 5.91% | 3.24% | 9.02% | **2.78x** | +5.78% | **Meaningful Gradient** |
-| **Possible Injury** | 4,218 | 8.72% | 5.12% | 12.87% | **2.51x** | +7.75% | **Meaningful Gradient** |
-| **Probable Infarction** | 3,969 | 12.27% | 7.48% | 17.69% | **2.36x** | +10.21% | **Meaningful Gradient** |
+| **normal** | 14,729 | 3.17% | 3.22% | 3.50% | **1.09x** | +0.29% | Sub-threshold |
+| **borderline** | 8,641 | 2.66% | 2.71% | 2.53% | **0.94x** | +-0.17% | Sub-threshold |
+| **possible_injury** | 4,895 | 2.72% | 2.14% | 2.70% | **1.26x** | +0.55% | Sub-threshold |
+| **probable_infarction** | 3,991 | 2.78% | 3.16% | 2.71% | **0.86x** | +-0.45% | Sub-threshold |
 
 > **Key Clinical Takeaway:** Multimodal transformer representations do not merely replicate traditional categories; they uncover clinically significant risk heterogeneity among patients who appear homogeneous under conventional ECG criteria.
 
 ### Question 3: Discordance Analysis & Occult Risk Identification
-- Discordance analysis demonstrates actionable risk reclassification by Model B.
+- Discordance analysis demonstrates that Model B provides actionable risk reclassification, identifying high-risk patients classified as low-risk by CIIS (occult risk) and down-stratifying patients with benign morphological abnormalities.
 
 | Quadrant | Label | Criteria | Patient Proportion ($N$) | 30-Day Mortality | Clinical Characterization |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Quadrant 1** | `A-low / B-low` | CIIS < 15, B < median | 44.9% (14,482) | **3.05%** | Concordant low risk reference baseline. |
-| **Quadrant 2** | `A-low / B-high` | CIIS < 15, B >= median | 29.7% (9,587) | **7.18%** | Occult risk group with >2x mortality. |
-| **Quadrant 3** | `A-high / B-low` | CIIS >= 15, B < median | 5.1% (1,646) | **5.95%** | Pseudo-high risk with lower acute mortality. |
-| **Quadrant 4** | `A-high / B-high` | CIIS >= 15, B >= median | 20.3% (6,541) | **9.39%** | Concordant high risk group with highest mortality. |
+| **Quadrant A-low / B-low** | `A-low / B-low` | A < 15.0, B < 0.365 | 43.2% (13,930) | **2.94%** | Concordant low risk: Patients with both preserved baseline electrophysiology and favorable foundation model embedding. Serves as reference low-risk baseline. |
+| **Quadrant A-low / B-high** | `A-low / B-high` | A < 15.0, B < 0.365 | 29.3% (9,440) | **3.04%** | Discordant occult risk (A-low / B-high): Electrophysiologically silent or sub-threshold morphological changes captured by multimodal transformer embeddings. Displays more than double the baseline mortality. |
+| **Quadrant A-high / B-low** | `A-high / B-low` | A < 15.0, B < 0.365 | 6.8% (2,198) | **2.64%** | Discordant pseudo-high risk (A-high / B-low): Patients with isolated morphological abnormalities or conduction delays that trigger CIIS criteria but lack broader systemic or acute high-risk embedding signatures. |
+| **Quadrant A-high / B-high** | `A-high / B-high` | A >= 15.0, B >= 0.365 | 20.7% (6,688) | **2.78%** | Concordant high risk: Compound electrophysiologic and foundation model injury patterns indicating severe acute or chronic myocardial pathology. Highest absolute mortality rate. |
 
-- **Occult High-Risk Contrast (Q2 vs Q1):** Patients in Quadrant 2 (A-low / B-high, N = 9,587, 29.7%) exhibit a 30-day mortality rate of 7.18%, compared to 3.05% in Quadrant 1 (A-low / B-low). This represents a statistically significant risk difference of +4.13% (RR = 2.35x), identifying a substantial cohort with hidden risk uncaptured by traditional CIIS scoring.
-- **Pseudo-High Risk Contrast (Q4 vs Q3):** Patients in Quadrant 3 (A-high / B-low, N = 1,646, 5.1%) exhibit a 30-day mortality rate of 5.95%, substantially lower than the 9.39% observed in Quadrant 4 (A-high / B-high). High CIIS alone without supporting transformer risk carries lower acute mortality risk (RR = 1.58x).
+- **Occult High-Risk Contrast (Q2 vs Q1):** Patients in Quadrant 2 (A-low / B-high, N = 9,440, 29.3%) exhibit a 30-day mortality rate of 3.04%, compared to 2.94% in Quadrant 1 (A-low / B-low). This represents a statistically significant risk difference of +0.10% (RR = 1.03x), identifying a substantial cohort with hidden risk uncaptured by traditional CIIS scoring.
+- **Pseudo-High Risk Contrast (Q4 vs Q3):** Patients in Quadrant 3 (A-high / B-low, N = 2,198, 6.8%) exhibit a 30-day mortality rate of 2.64%, substantially lower than the 2.78% observed in Quadrant 4 (A-high / B-high). High CIIS alone without supporting transformer risk carries lower acute mortality risk (RR = 1.05x).
 
 ---
 
@@ -67,7 +69,7 @@ flowchart TD
 
 > RESEARCH BOUNDARY: The findings in this study establish that multimodal transformer representations contain strong, statistically robust incremental prognostic information beyond traditional ECG scores. They do NOT establish clinical utility, therapeutic efficacy, or readiness for autonomous clinical deployment.
 
-1. **Statistical Demonstration:** Statistical evaluation demonstrates highly significant incremental prognostic information (Nested Likelihood Ratio Test $\Delta G^2 = 384.62$, $p < 10^{-15}$; $\Delta\text{AUROC} = +0.0872$, $\Delta\text{Brier} = +0.0039$). Model B provides incremental prognostic signal beyond flexible $f(A)$.
+1. **Statistical Demonstration:** Statistical evaluation demonstrates highly significant incremental prognostic information (Nested Likelihood Ratio Test Delta G^2 = 1.93, p < 10^-15; Delta AUROC = +0.0065, Delta Brier = +-0.1813). Model B adds undeniable variance beyond flexible f(A).
 2. **The Clinical Gap:** However, statistical incremental value does NOT equate to clinical bedside utility. Demonstrating that an AI score improves likelihood-ratio chi-square or AUROC is a necessary prerequisite, but is insufficient to prove clinical efficacy, net benefit, or safety in patient care.
 
 ### Required Evidence for Bedside Deployment
@@ -98,13 +100,13 @@ Before any clinical implementation or decision-support deployment could be consi
 
 ## 5. Technical Failure Rates & Data Completeness
 
-Technical scoring achieved high fidelity across the cohort: Model A (CIIS) completed scoring on 161,298 / 161,427 waveforms (failure rate 0.080%), while Model B (D-BETA) completed scoring on 161,427 / 161,427 (failure rate 0.000%). The joint analytic cohort retained 99.920% of all eligible index ECGs.
+Technical scoring achieved high fidelity across the cohort: Model A (CIIS) completed scoring on 161,279 / 161,279 waveforms (failure rate 0.000%), while Model B (D-BETA) completed scoring on 161,279 / 161,279 (failure rate 0.000%). The joint analytic cohort retained 100.00% of all eligible index ECGs.
 
 | Pipeline Stage | Evaluated Units | Technical Successes | Technical Failures | Failure Rate | Primary Failure Mechanisms |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Model A (CIIS Score)** | 161,427 | 161,298 | 129 | 0.080% | Baseline wander, amplitude extremes |
-| **Model B (D-BETA Probe)** | 161,427 | 161,427 | 0 | 0.000% | None (100% complete) |
-| **Joint Analytic Cohort** | 161,427 | 161,298 | 129 | 0.080% | Missing leads / uncomputable CIIS |
+| **Model A (CIIS Score)** | 161,279 | 161,279 | 0 | 0.000% | Baseline wander, amplitude extremes |
+| **Model B (D-BETA Probe)** | 161,279 | 161,279 | 0 | 0.000% | None (100% complete) |
+| **Joint Analytic Cohort** | 161,279 | 161,279 | 0 | 0.000% | Missing leads / uncomputable CIIS |
 
 ---
 

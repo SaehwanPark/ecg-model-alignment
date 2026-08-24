@@ -70,7 +70,7 @@ def test_readme_integrity_and_findings() -> None:
   content = readme_path.read_text(encoding="utf-8")
 
   assert "ECG Risk Alignment" in content
-  assert "Key Empirical Findings" in content
+  assert "Empirical Findings" in content
   assert "Interactive Walkthrough & Notebooks" in content
   assert "Predictor-Information Firewall" in content
   assert "Quickstart & CLI Orchestration" in content

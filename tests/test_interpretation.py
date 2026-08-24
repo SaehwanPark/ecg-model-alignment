@@ -348,10 +348,13 @@ def test_synthesize_research_interpretation_and_markdown() -> None:
     ValidationRecommendationStatus.NOT_JUSTIFIED,
   )
 
-  markdown = generate_research_interpretation_markdown(synthesis)
+  markdown = generate_research_interpretation_markdown(synthesis, data_mode="real")
   assert isinstance(markdown, str)
   assert "# Stage 11 Research Report" in markdown
+  assert "> **Data Source:** REAL MIMIC-IV-ECG predictions" in markdown
   assert "mermaid" in markdown
+  assert f"rho = {synthesis.alignment.spearman_rho:.3f}" in markdown
+  assert f"Occult Risk RR = {synthesis.discordance.occult_relative_risk:.2f}x" in markdown
   assert "Quadrant 2" in markdown
   assert "RESEARCH BOUNDARY" in markdown
   assert "DISCLOSURE AUDIT" in markdown
@@ -360,7 +363,11 @@ def test_synthesize_research_interpretation_and_markdown() -> None:
   assert "External Validation" in markdown
   assert "Stage 11 is complete." in markdown
 
-  # 2. Refuses None primary_result (fails closed against hardcoded static fallbacks)
+  # 2. Simulation mode provenance header
+  markdown_sim = generate_research_interpretation_markdown(synthesis, data_mode="simulation")
+  assert "> **Data Source:** SIMULATION — NOT EMPIRICAL RESULTS" in markdown_sim
+
+  # 3. Refuses None primary_result (fails closed against hardcoded static fallbacks)
   with pytest.raises(ValueError, match="requires a valid PrimaryAnalysisResult"):
     # pyright: ignore[reportArgumentType]
     synthesize_research_interpretation(primary_result=None)  # type: ignore
