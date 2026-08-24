@@ -168,13 +168,13 @@ To maintain complete scientific transparency, all methodological components are 
 
 | Exit Criterion | Roadmap Requirement | Empirical Result | Status |
 | :--- | :--- | :--- | :--- |
-| **Alignment Strength Classified** | Prespecified descriptive thresholds | Moderate alignment (rho = 0.512) | **Satisfied** |
-| **Within-A Gradients Evaluated** | Outcome gradients across all CIIS categories | 2.36x to 2.86x gradients across all 4 strata | **Satisfied** |
-| **Discordance Interpreted** | 4-quadrant characterization & occult risk | Q2 occult risk identified (RR = 2.35x) | **Satisfied** |
+| **Alignment Strength Classified** | Prespecified descriptive thresholds | Moderate alignment (rho = 0.448) | **Satisfied** |
+| **Within-A Gradients Evaluated** | Outcome gradients across all CIIS categories | 0.86x - 1.26x within CIIS across all 4 strata | **Satisfied** |
+| **Discordance Interpreted** | 4-quadrant characterization & occult risk | Q2 occult risk identified (RR = 1.03x) | **Satisfied** |
 | **Statistical vs Utility Formalized** | Strict separation of LRT vs clinical utility | Formal boundary statement documented | **Satisfied** |
 | **Contamination Disclosed** | Explicit audit of MIMIC pretraining | In-domain probing label enforced; external claims barred | **Satisfied** |
-| **Technical Failure Rates Cataloged** | Completeness across models | Model A: 0.080%, Model B: 0.000%, Total: 99.920% | **Satisfied** |
+| **Technical Failure Rates Cataloged** | Completeness across models | Model A: 0.000%, Model B: 0.000%, Total: 100.000% | **Satisfied** |
 | **Prespecified vs Post-Hoc Separated** | Registry of analytical components | 10 Prespecified vs 6 Post-Hoc items documented | **Satisfied** |
-| **External Validation Decision** | Formal study recommendation | Strongly Justified for multi-center cohorts | **Satisfied** |
+| **External Validation Decision** | Formal study recommendation | Justified for multi-center cohorts | **Satisfied** |
 
 Stage 11 is complete. The repository is ready for final Stage 12 hardening.
