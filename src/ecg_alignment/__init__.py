@@ -43,6 +43,22 @@ from ecg_alignment.outcomes import (
   filter_valid_outcomes,
   generate_outcome_report_markdown,
 )
+from ecg_alignment.split import (
+  DEFAULT_SPLIT_DEV,
+  DEFAULT_SPLIT_SEED,
+  DEFAULT_SPLIT_TEST,
+  DEFAULT_SPLIT_VAL,
+  CohortAttritionStep,
+  CohortSplitResult,
+  SplitRatios,
+  assign_patient_disjoint_split,
+  build_primary_cohort_and_split,
+  compute_split_summary_statistics,
+  derive_primary_cohort,
+  generate_cohort_flow_markdown,
+  save_split_assignments,
+  verify_split_disjointness,
+)
 
 __version__ = "0.1.0"
 
@@ -81,5 +97,20 @@ __all__ = [
   "compute_patient_death_table",
   "filter_valid_outcomes",
   "generate_outcome_report_markdown",
+  "DEFAULT_SPLIT_DEV",
+  "DEFAULT_SPLIT_SEED",
+  "DEFAULT_SPLIT_TEST",
+  "DEFAULT_SPLIT_VAL",
+  "CohortAttritionStep",
+  "CohortSplitResult",
+  "SplitRatios",
+  "assign_patient_disjoint_split",
+  "build_primary_cohort_and_split",
+  "compute_split_summary_statistics",
+  "derive_primary_cohort",
+  "generate_cohort_flow_markdown",
+  "save_split_assignments",
+  "verify_split_disjointness",
 ]
+
 
