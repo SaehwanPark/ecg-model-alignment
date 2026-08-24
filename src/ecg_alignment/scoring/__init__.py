@@ -1,5 +1,26 @@
 """ECG risk model scoring interfaces and implementations."""
 
+from ecg_alignment.scoring.base import (
+  CABRERA_12_LEADS,
+  STANDARD_CLINICAL_12_LEADS,
+  BaseEcgModelAdapter,
+  BatchInferenceResult,
+  CropAlign,
+  ImageRenderConfig,
+  InputModality,
+  ModelOutputResult,
+  TransformerAdapterConfig,
+  WaveformPadMode,
+  WaveformPreprocessConfig,
+)
+from ecg_alignment.scoring.preprocess import (
+  pad_or_crop_waveform,
+  preprocess_waveform,
+  render_12lead_ecg_image,
+  resample_waveform,
+  scale_waveform_units,
+  validate_and_reorder_leads,
+)
 from ecg_alignment.scoring.traditional import (
   CIISCategory,
   CIISMeasurements,
@@ -12,6 +33,23 @@ from ecg_alignment.scoring.traditional import (
 )
 
 __all__ = [
+  "CABRERA_12_LEADS",
+  "STANDARD_CLINICAL_12_LEADS",
+  "BaseEcgModelAdapter",
+  "BatchInferenceResult",
+  "CropAlign",
+  "ImageRenderConfig",
+  "InputModality",
+  "ModelOutputResult",
+  "TransformerAdapterConfig",
+  "WaveformPadMode",
+  "WaveformPreprocessConfig",
+  "pad_or_crop_waveform",
+  "preprocess_waveform",
+  "render_12lead_ecg_image",
+  "resample_waveform",
+  "scale_waveform_units",
+  "validate_and_reorder_leads",
   "CIISCategory",
   "CIISMeasurements",
   "CIISScoreResult",
