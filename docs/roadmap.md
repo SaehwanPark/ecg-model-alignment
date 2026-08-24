@@ -374,40 +374,41 @@ Generate `A` and `B` on exactly the same index ECG cohort.
 
 ### `A`
 
-- [ ] Compute continuous CIIS.
-- [ ] Compute prespecified CIIS category.
-- [ ] Record technical failure reasons.
+- [x] Compute continuous CIIS.
+- [x] Compute prespecified CIIS category.
+- [x] Record technical failure reasons.
 
 ### `B`
 
 For D-BETA:
 
-- [ ] Extract frozen embedding on development set.
-- [ ] Extract frozen embedding on validation set.
-- [ ] Do not inspect final-test outcomes.
-- [ ] Fit L2-regularized logistic regression using development outcomes only.
-- [ ] Select regularization on validation data only.
-- [ ] Freeze probe coefficients.
-- [ ] Generate final-test `B` scores.
+- [x] Extract frozen embedding on development set.
+- [x] Extract frozen embedding on validation set.
+- [x] Do not inspect final-test outcomes.
+- [x] Fit L2-regularized logistic regression using development outcomes only.
+- [x] Select regularization on validation data only.
+- [x] Freeze probe coefficients.
+- [x] Generate final-test `B` scores.
 
 ### Joint checks
 
-- [ ] Confirm one row per patient.
-- [ ] Confirm identical ECG ID for `A` and `B`.
-- [ ] Confirm no clinical predictors were accidentally merged.
-- [ ] Confirm all score generation can be reproduced from IDs and configuration.
+- [x] Confirm one row per patient.
+- [x] Confirm identical ECG ID for `A` and `B`.
+- [x] Confirm no clinical predictors were accidentally merged.
+- [x] Confirm all score generation can be reproduced from IDs and configuration.
 
 ### Deliverables
 
-- [ ] `src/ecg_alignment/probe.py`
-- [ ] `tests/test_probe.py`
-- [ ] versioned analysis configuration
-- [ ] derived score table in the protected analysis environment
+- [x] `src/ecg_alignment/probe.py`
+- [x] `tests/test_probe.py`
+- [x] `reports/continuous-predictions.md`
+- [x] versioned analysis configuration
+- [x] derived score table in the protected analysis environment
 
 ### Exit Criteria
 
-- [ ] Continuous `A` and `B` exist for the common test cohort.
-- [ ] Probe specification is frozen.
+- [x] Continuous `A` and `B` exist for the common test cohort.
+- [x] Probe specification is frozen.
 
 ## Stage 9 — Primary Analysis
 
