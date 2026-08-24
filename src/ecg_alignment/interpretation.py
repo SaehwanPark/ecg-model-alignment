@@ -360,11 +360,25 @@ def assess_within_a_gradients(
     )
 
   mean_ratio = float(sum(ratios) / len(ratios)) if ratios else 1.0
-  summary_narrative = (
-    f"Model B consistently uncovers substantial residual risk gradients across all "
-    f"{len(assessments)} traditional CIIS risk categories (mean gradient ratio {mean_ratio:.2f}x). "
-    "Even among electrophysiologically Normal patients, Model B identifies a near 3-fold mortality spread."
-  )
+  ratios_str = ", ".join(f"{r:.2f}x" for r in ratios)
+  n_meaningful = sum(1 for a in assessments if a.is_meaningful)
+  if all_meaningful:
+    summary_narrative = (
+      f"Model B consistently uncovers substantial residual risk gradients across all "
+      f"{len(assessments)} traditional CIIS risk categories (gradient ratios: {ratios_str}; mean {mean_ratio:.2f}x)."
+    )
+  elif n_meaningful > 0:
+    summary_narrative = (
+      f"Model B uncovers residual risk gradients in {n_meaningful} of {len(assessments)} "
+      f"traditional CIIS categories (mean gradient ratio {mean_ratio:.2f}x); "
+      f"{len(assessments) - n_meaningful} categories did not meet the prespecified {min_ratio:.2f}x threshold."
+    )
+  else:
+    summary_narrative = (
+      f"No consistent residual-risk gradient was detected; none of the {len(assessments)} "
+      f"traditional CIIS strata met the prespecified meaningful-gradient threshold of {min_ratio:.2f}x "
+      f"(mean gradient ratio {mean_ratio:.2f}x; gradient ratios: {ratios_str})."
+    )
 
   return WithinAGradientsSummary(
     category_assessments=tuple(assessments),
@@ -381,16 +395,20 @@ def interpret_discordant_groups(
   """Construct clinically detailed interpretations of the 4 discordance quadrants."""
   quadrant_details: list[DiscordantQuadrantDetail] = []
   clinical_notes = {
-    "Q1": "Concordant low risk: Patients with both preserved baseline electrophysiology and favorable foundation model embedding. Serves as reference low-risk baseline.",
-    "Q2": "Discordant occult risk (A-low / B-high): Electrophysiologically silent or sub-threshold morphological changes captured by multimodal transformer embeddings. Displays more than double the baseline mortality.",
-    "Q3": "Discordant pseudo-high risk (A-high / B-low): Patients with isolated morphological abnormalities or conduction delays that trigger CIIS criteria but lack broader systemic or acute high-risk embedding signatures.",
-    "Q4": "Concordant high risk: Compound electrophysiologic and foundation model injury patterns indicating severe acute or chronic myocardial pathology. Highest absolute mortality rate.",
+    "Q1": "Concordant low risk: Preserved baseline electrophysiology and low transformer risk score. Serves as reference low-risk baseline.",
+    "Q2": "Discordant group (A-low / B-high): Low traditional CIIS score but elevated transformer risk score.",
+    "Q3": "Discordant group (A-high / B-low): Elevated traditional CIIS score but low transformer risk score.",
+    "Q4": "Concordant high risk: Both elevated traditional CIIS score and elevated transformer risk score.",
   }
 
   total = sum(q.n_patients for q in discordance_res.quadrants) if discordance_res.quadrants else total_patients
   for idx, q in enumerate(discordance_res.quadrants, start=1):
     prop = q.n_patients / total if total > 0 else 0.0
-    desc = f"A {'<' if 'low' in q.label.lower() else '>='} {discordance_res.a_threshold:.1f}, B {'<' if 'low' in q.label.lower() else '>='} {discordance_res.b_threshold:.3f}"
+    label_lower = q.label.lower()
+    parts = [p.strip() for p in label_lower.split("/") if p.strip()]
+    a_is_low = "a-low" in label_lower or (len(parts) >= 1 and "low" in parts[0])
+    b_is_low = "b-low" in label_lower or (len(parts) >= 2 and "low" in parts[1])
+    desc = f"A {'<' if a_is_low else '>='} {discordance_res.a_threshold:.1f}, B {'<' if b_is_low else '>='} {discordance_res.b_threshold:.3f}"
     qid = q.quadrant_id if isinstance(q.quadrant_id, str) else f"Q{q.quadrant_id}"
     quadrant_details.append(
       DiscordantQuadrantDetail(
@@ -411,28 +429,52 @@ def interpret_discordant_groups(
   pseudo_rr = (
     quadrant_details[3].event_rate / quadrant_details[2].event_rate
     if len(quadrant_details) >= 4 and quadrant_details[2].event_rate > 0.0
-    else 1.58
+    else 1.0
   )
 
-  occult_narrative = (
-    f"Patients in Quadrant 2 (A-low / B-high, N = {quadrant_details[1].n_patients:,}, {quadrant_details[1].proportion * 100:.1f}%) "
-    f"exhibit a 30-day mortality rate of {quadrant_details[1].event_rate * 100:.2f}%, compared to "
-    f"{quadrant_details[0].event_rate * 100:.2f}% in Quadrant 1 (A-low / B-low). "
-    f"This represents a statistically significant risk difference of +{occult_rd * 100:.2f}% (RR = {occult_rr:.2f}x), "
-    "identifying a substantial cohort with hidden risk uncaptured by traditional CIIS scoring."
-  )
+  rd_ci = discordance_res.risk_diff_alow_bhigh_vs_alow_blow
+  rr_ci = discordance_res.risk_ratio_alow_bhigh_vs_alow_blow
+
+  if rd_ci.ci_lower > 0 and rr_ci.ci_lower > 1.0:
+    occult_narrative = (
+      f"Patients in Quadrant 2 (A-low / B-high, N = {quadrant_details[1].n_patients:,}, {quadrant_details[1].proportion * 100:.1f}%) "
+      f"exhibit a 30-day mortality rate of {quadrant_details[1].event_rate * 100:.2f}%, compared to "
+      f"{quadrant_details[0].event_rate * 100:.2f}% in Quadrant 1 (A-low / B-low). "
+      f"This represents a statistically significant risk difference of {rd_ci.formatted(4)} (RR = {rr_ci.formatted(2)}), "
+      "identifying a cohort with higher observed mortality despite low CIIS score."
+    )
+    takeaway = (
+      "Discordance analysis demonstrates evidence of risk divergence between Model A and Model B in the test cohort, "
+      "identifying patients where multimodal transformer representations diverge from traditional rule-based classification."
+    )
+  elif rd_ci.ci_lower <= 0 <= rd_ci.ci_upper:
+    occult_narrative = (
+      f"Patients in Quadrant 2 (A-low / B-high, N = {quadrant_details[1].n_patients:,}, {quadrant_details[1].proportion * 100:.1f}%) "
+      f"exhibit a 30-day mortality rate of {quadrant_details[1].event_rate * 100:.2f}%, compared to "
+      f"{quadrant_details[0].event_rate * 100:.2f}% in Quadrant 1 (A-low / B-low). "
+      f"The risk difference of {rd_ci.formatted(4)} (RR = {rr_ci.formatted(2)}) "
+      "did not reach statistical significance at the 95% confidence level."
+    )
+    takeaway = (
+      "Discordance analysis shows no statistically significant divergence in mortality risk between "
+      "concordant and discordant risk quadrants at the prespecified thresholds."
+    )
+  else:
+    occult_narrative = (
+      f"Patients in Quadrant 2 (A-low / B-high, N = {quadrant_details[1].n_patients:,}, {quadrant_details[1].proportion * 100:.1f}%) "
+      f"exhibit a 30-day mortality rate of {quadrant_details[1].event_rate * 100:.2f}%, compared to "
+      f"{quadrant_details[0].event_rate * 100:.2f}% in Quadrant 1 (A-low / B-low) "
+      f"(Risk Difference: {rd_ci.formatted(4)}, RR: {rr_ci.formatted(2)})."
+    )
+    takeaway = (
+      "Discordance analysis shows no evidence of excess risk in the A-low / B-high quadrant."
+    )
 
   pseudo_narrative = (
     f"Patients in Quadrant 3 (A-high / B-low, N = {quadrant_details[2].n_patients:,}, {quadrant_details[2].proportion * 100:.1f}%) "
-    f"exhibit a 30-day mortality rate of {quadrant_details[2].event_rate * 100:.2f}%, substantially lower than the "
-    f"{quadrant_details[3].event_rate * 100:.2f}% observed in Quadrant 4 (A-high / B-high). "
-    f"High CIIS alone without supporting transformer risk carries lower acute mortality risk (RR = {pseudo_rr:.2f}x)."
-  )
-
-  takeaway = (
-    "Discordance analysis demonstrates that Model B provides actionable risk reclassification, "
-    "identifying high-risk patients classified as low-risk by CIIS (occult risk) and down-stratifying "
-    "patients with benign morphological abnormalities."
+    f"exhibit a 30-day mortality rate of {quadrant_details[2].event_rate * 100:.2f}%, compared to "
+    f"{quadrant_details[3].event_rate * 100:.2f}% observed in Quadrant 4 (A-high / B-high) "
+    f"(Risk Difference: {discordance_res.risk_diff_ahigh_bhigh_vs_ahigh_blow.formatted(4)})."
   )
 
   return DiscordanceInterpretationSummary(
@@ -452,16 +494,43 @@ def evaluate_clinical_utility_distinction(
   comp_res: PerformanceComparisonResult | None = None,
 ) -> ClinicalUtilityDistinction:
   """Formalize the distinction between statistical incremental information and clinical utility."""
-  lrt_stat = incremental_res.lrt_statistic if incremental_res else 384.62
-  lrt_pval = incremental_res.lrt_pvalue if incremental_res else 1e-15
-  delta_auroc = comp_res.delta_auroc.point_estimate if comp_res else 0.0872
-  delta_brier = comp_res.delta_brier.point_estimate if comp_res else 0.0039
+  lrt_stat = incremental_res.lrt_statistic if incremental_res else 0.0
+  lrt_pval = incremental_res.lrt_pvalue if incremental_res else 1.0
+  delta_auroc = comp_res.delta_auroc.point_estimate if comp_res else 0.0
+  delta_brier = comp_res.delta_brier.point_estimate if comp_res else 0.0
 
-  statistical_summary = (
-    f"Statistical evaluation demonstrates highly significant incremental prognostic information "
-    f"(Nested Likelihood Ratio Test Delta G^2 = {lrt_stat:.2f}, p < 10^-15; Delta AUROC = +{delta_auroc:.4f}, "
-    f"Delta Brier = +{delta_brier:.4f}). Model B adds undeniable variance beyond flexible f(A)."
-  )
+  p_str = "p < 10^-15" if lrt_pval < 1e-15 else f"p = {lrt_pval:.2e}"
+
+  is_significant = False
+  if comp_res is not None and comp_res.delta_auroc.ci_lower > 0 and lrt_pval < 0.05:
+    is_significant = True
+  elif comp_res is None and incremental_res is not None and incremental_res.auroc_improvement.ci_lower > 0 and lrt_pval < 0.05:
+    is_significant = True
+
+  if is_significant:
+    statistical_summary = (
+      f"Statistical evaluation demonstrates incremental prognostic information on the test partition "
+      f"(Delta AUROC = {comp_res.delta_auroc.formatted(4) if comp_res else f'+{delta_auroc:.4f}'}, "
+      f"Delta Brier = {comp_res.delta_brier.formatted(4) if comp_res else f'+{delta_brier:.4f}'}; "
+      f"Nested Likelihood Ratio Test Delta G^2 = {lrt_stat:.2f}, {p_str})."
+    )
+    formal_statement = (
+      "RESEARCH BOUNDARY: While multimodal transformer representations demonstrate incremental prognostic "
+      "signal beyond traditional ECG scores in this evaluation, statistical improvement does NOT establish "
+      "clinical utility, therapeutic efficacy, or readiness for autonomous bedside deployment."
+    )
+  else:
+    statistical_summary = (
+      f"Statistical evaluation does not demonstrate statistically significant incremental prognostic information on the test partition "
+      f"(Delta AUROC = {comp_res.delta_auroc.formatted(4) if comp_res else f'{delta_auroc:.4f}'}, "
+      f"Delta Brier = {comp_res.delta_brier.formatted(4) if comp_res else f'{delta_brier:.4f}'}; "
+      f"Nested Likelihood Ratio Test Delta G^2 = {lrt_stat:.2f}, {p_str})."
+    )
+    formal_statement = (
+      "RESEARCH BOUNDARY: In this evaluation, multimodal transformer representations did not demonstrate statistically "
+      "significant incremental prognostic information beyond traditional ECG scores on the held-out test partition. "
+      "Regardless of statistical effect size, statistical metrics do not establish clinical utility or bedside readiness."
+    )
 
   clinical_utility_caveat = (
     "However, statistical incremental value does NOT equate to clinical bedside utility. "
@@ -475,12 +544,6 @@ def evaluate_clinical_utility_distinction(
     "Cost-effectiveness and alert-fatigue modeling in electronic health record (EHR) workflows.",
     "Clinical actionability protocols linking specific risk score strata to diagnostic or therapeutic pathways.",
     "True external validation in independent hospital systems with zero pretraining exposure.",
-  )
-
-  formal_statement = (
-    "RESEARCH BOUNDARY: The findings in this study establish that multimodal transformer representations "
-    "contain strong, statistically robust incremental prognostic information beyond traditional ECG scores. "
-    "They do NOT establish clinical utility, therapeutic efficacy, or readiness for autonomous clinical deployment."
   )
 
   return ClinicalUtilityDistinction(
@@ -599,7 +662,7 @@ def summarize_technical_failure_rates(
   reasons_b = ()
 
   narrative = (
-    f"Technical scoring achieved high fidelity across the cohort: Model A (CIIS) completed scoring on "
+    f"Technical scoring achieved high technical completion across the cohort: Model A (CIIS) completed scoring on "
     f"{total_waveforms - model_a_failures:,} / {total_waveforms:,} waveforms (failure rate {rate_a * 100:.3f}%), "
     f"while Model B (D-BETA) completed scoring on {total_waveforms - model_b_failures:,} / {total_waveforms:,} "
     f"(failure rate {rate_b * 100:.3f}%). The joint analytic cohort retained {completeness * 100:.2f}% of all eligible index ECGs."
@@ -736,32 +799,89 @@ def synthesize_external_validation_recommendation(
   sensitivity_result: FullSensitivityAnalysisResult | None = None,
 ) -> ExternalValidationRecommendation:
   """Formulate recommendation regarding external validation studies."""
-  status = ValidationRecommendationStatus.JUSTIFIED
+  status = ValidationRecommendationStatus.INCONCLUSIVE
+  narrative = ""
 
   justification_list: list[str] = []
   if primary_result is not None:
     lrt_p = primary_result.incremental.lrt_pvalue
     p_str = "p < 10^-15" if lrt_p < 1e-15 else f"p = {lrt_p:.2e}"
-    justification_list.append(
-      f"Significant incremental prognostic signal confirmed (LRT {p_str}, Delta AUROC +{primary_result.comparison.delta_auroc.point_estimate:.4f})."
-    )
+    delta_auc = primary_result.comparison.delta_auroc
+    if lrt_p < 0.05 and delta_auc.ci_lower > 0:
+      justification_list.append(
+        f"Significant incremental prognostic signal confirmed (LRT {p_str}, Delta AUROC {delta_auc.formatted(4)})."
+      )
+    else:
+      justification_list.append(
+        f"Null or inconclusive incremental signal in in-domain probing (LRT {p_str}, Delta AUROC {delta_auc.formatted(4)})."
+      )
+
     total_q_patients = sum(q.n_patients for q in primary_result.discordance.quadrants)
-    q2_list = [q for q in primary_result.discordance.quadrants if "Q2" in q.quadrant_id or "alow_bhigh" in q.quadrant_id.lower() or "A-low / B-high" in q.label]
-    occult_prop = (q2_list[0].n_patients / total_q_patients * 100.0) if q2_list and total_q_patients > 0 else 0.0
-    occult_rr = primary_result.discordance.risk_ratio_alow_bhigh_vs_alow_blow.point_estimate
-    justification_list.append(
-      f"Substantial occult risk cohort identified ({occult_prop:.1f}% of test population with {occult_rr:.2f}x mortality elevation in A-low/B-high quadrant)."
+    q2_list = [
+      q
+      for q in primary_result.discordance.quadrants
+      if "Q2" in q.quadrant_id
+      or "alow_bhigh" in q.quadrant_id.lower()
+      or "A-low / B-high" in q.label
+    ]
+    occult_prop = (
+      (q2_list[0].n_patients / total_q_patients * 100.0)
+      if q2_list and total_q_patients > 0
+      else 0.0
     )
+    occult_rr = primary_result.discordance.risk_ratio_alow_bhigh_vs_alow_blow
+    if (
+      primary_result.discordance.risk_diff_alow_bhigh_vs_alow_blow.ci_lower > 0
+      and occult_rr.ci_lower > 1.0
+    ):
+      justification_list.append(
+        f"Occult risk cohort identified ({occult_prop:.1f}% of test population with {occult_rr.formatted(2)}x mortality elevation in A-low/B-high quadrant)."
+      )
+    else:
+      justification_list.append(
+        f"Discordance contrast (A-low/B-high vs A-low/B-low) did not demonstrate statistically significant risk divergence (RR = {occult_rr.formatted(2)})."
+      )
+
+    # Determine recommendation status and narrative
+    if delta_auc.ci_lower > 0 and lrt_p < 0.05:
+      status = ValidationRecommendationStatus.JUSTIFIED
+      narrative = (
+        "DECISION: Formal external validation is STRONGLY JUSTIFIED. The demonstrated incremental prognostic "
+        "performance of the transformer representation, combined with the presence of in-domain pretraining contamination "
+        "in MIMIC-IV-ECG, makes an independent multi-center external validation study the logical next step."
+      )
+    elif delta_auc.point_estimate > 0 and delta_auc.ci_upper > 0:
+      status = ValidationRecommendationStatus.INCONCLUSIVE
+      narrative = (
+        f"DECISION: Evidence for external validation is INCONCLUSIVE. The observed incremental effect size is modest or "
+        f"CI crosses null (Delta AUROC = {delta_auc.formatted(4)}). External validation on larger multi-center cohorts "
+        "may be considered to resolve uncertainty, but evidence of clear in-domain superiority is not yet established."
+      )
+    else:
+      status = ValidationRecommendationStatus.NOT_JUSTIFIED
+      narrative = (
+        f"DECISION: External validation of this exact formulation is NOT YET STRONGLY MOTIVATED. In-domain representation "
+        f"probing demonstrated an approximately null incremental effect (Delta AUROC = {delta_auc.formatted(4)}). "
+        "Methodological refinement of the representation, outcome window, or comparator is recommended before committing to external validation studies."
+      )
   else:
-    justification_list.append("Incremental prognostic signal demonstrated in primary modeling.")
+    justification_list.append("Incremental prognostic signal not evaluated.")
+    status = ValidationRecommendationStatus.INCONCLUSIVE
+    narrative = (
+      "DECISION: External validation recommendation is INCONCLUSIVE without empirical primary results."
+    )
 
   if sensitivity_result is not None:
-    justification_list.append("Consistency across evaluated sensitivity battery (robust performance across evaluated horizons, strata, and specifications).")
+    justification_list.append(
+      "Evaluated sensitivity battery completed across available dimensions."
+    )
   else:
-    justification_list.append("Directional consistency observed across exploratory sensitivity checks.")
+    justification_list.append(
+      "Sensitivity analyses were not evaluated."
+    )
 
   justification_list.append(
-    "Pretraining contamination in current evaluation necessitates validation on independent cohorts with zero prior model exposure."
+    "Pretraining contamination in foundation model evaluations necessitates validation on independent cohorts with zero prior model exposure."
   )
 
   recommended_cohorts = (
@@ -782,12 +902,6 @@ def synthesize_external_validation_recommendation(
     "Formal Decision Curve Analysis (DCA) and net clinical benefit modeling.",
     "Prospective silent-mode deployment or randomized trial for clinical actionability.",
     "Real-time inference latency and EHR integration feasibility benchmarks.",
-  )
-
-  narrative = (
-    "DECISION: Formal external validation is STRONGLY JUSTIFIED. The consistent, large effect size of the "
-    "transformer representation, combined with the presence of in-domain pretraining contamination in MIMIC-IV-ECG, "
-    "makes an independent multi-center external validation study the logical and scientifically required next step."
   )
 
   return ExternalValidationRecommendation(
@@ -870,12 +984,30 @@ def synthesize_research_interpretation(
   external_val = synthesize_external_validation_recommendation(primary_result, sensitivity_result)
 
   # Executive Summary
+  grad_summary_short = (
+    f"Residual Risk: Meaningful mortality gradients observed (mean gradient ratio {within_a.mean_gradient_ratio:.2f}x) across traditional CIIS categories."
+    if within_a.all_categories_meaningful
+    else f"Residual Risk: No consistent residual-risk gradient detected (mean gradient ratio {within_a.mean_gradient_ratio:.2f}x)."
+  )
+
+  disc_summary_short = (
+    f"Discordance: Identifies an occult high-risk cohort with a {discordance.occult_relative_risk:.2f}-fold increased 30-day mortality rate."
+    if primary_result.discordance.risk_diff_alow_bhigh_vs_alow_blow.ci_lower > 0
+    else f"Discordance: No statistically significant occult risk excess observed (RR = {discordance.occult_relative_risk:.2f}x)."
+  )
+
+  util_summary_short = (
+    f"Statistical vs Clinical Utility: Incremental prognostic value observed (Delta AUROC = +{utility_distinction.delta_auroc:.4f}); clinical utility remains to be demonstrated through prospective decision-curve and intervention studies."
+    if utility_distinction.delta_auroc > 0 and primary_result.comparison.delta_auroc.ci_lower > 0
+    else f"Statistical vs Clinical Utility: Null or sub-threshold incremental prognostic signal observed (Delta AUROC = {utility_distinction.delta_auroc:+.4f}); statistical metrics do not establish clinical bedside readiness."
+  )
+
   executive_summary = (
     "STAGE 11 RESEARCH INTERPRETATION SYNTHESIS:\n"
-    f"1. Global Alignment: {alignment.strength.value.capitalize()} (Spearman rho = {alignment.spearman_rho:.3f}), indicating shared electrophysiologic signal alongside complementary representation capacity.\n"
-    f"2. Residual Risk: Model B produces meaningful mortality gradients (mean gradient ratio {within_a.mean_gradient_ratio:.2f}x) across traditional CIIS categories.\n"
-    f"3. Discordance: Identifies an occult high-risk cohort with a {discordance.occult_relative_risk:.2f}-fold increased 30-day mortality rate.\n"
-    f"4. Statistical vs Clinical Utility: Incremental prognostic value is confirmed (Delta AUROC = +{utility_distinction.delta_auroc:.4f}); clinical utility remains to be demonstrated through prospective decision-curve and intervention studies.\n"
+    f"1. Global Alignment: {alignment.strength.value.capitalize()} (Spearman rho = {alignment.spearman_rho:.3f}), indicating {alignment.strength.value} score concordance.\n"
+    f"2. {grad_summary_short}\n"
+    f"3. {disc_summary_short}\n"
+    f"4. {util_summary_short}\n"
     "5. Scientific Disclosure: Because foundation models were pretrained on MIMIC-IV-ECG, findings represent in-domain representation probing, not independent external validation.\n"
     f"6. External Validation: {external_val.status.value.replace('_', ' ').title()} across independent multi-center cohorts."
   )
@@ -912,6 +1044,7 @@ def generate_research_interpretation_markdown(
     grad_str = f"{synthesis.within_a_gradients.mean_gradient_ratio:.2f}x mean gradient"
 
   completion_pct = synthesis.technical_failures.cohort_completeness_rate * 100.0
+  ext_val_title = synthesis.external_validation_recommendation.status.value.replace('_', ' ').title()
 
   lines: list[str] = [
     "# Stage 11 Research Report: Comprehensive Scientific Interpretation & Translation Boundaries",
@@ -930,8 +1063,8 @@ def generate_research_interpretation_markdown(
     "  subgraph Findings['Empirical Synthesis (Stages 9-10)']",
     f"    F1['1. {synthesis.alignment.strength.value.capitalize()} Alignment (rho = {synthesis.alignment.spearman_rho:.3f})']",
     f"    F2['2. Residual Risk Gradients ({grad_str})']",
-    f"    F3['3. Informative Discordance (Occult Risk RR = {synthesis.discordance.occult_relative_risk:.2f}x)']",
-    f"    F4['4. Incremental Information (Delta AUROC +{synthesis.utility_distinction.delta_auroc:.4f})']",
+    f"    F3['3. Discordance Analysis (Occult Risk RR = {synthesis.discordance.occult_relative_risk:.2f}x)']",
+    f"    F4['4. Incremental Information (Delta AUROC = {synthesis.utility_distinction.delta_auroc:+.4f})']",
     "  end",
     "",
     "  subgraph Boundaries['Stage 11 Translation & Guardrail Boundaries']",
@@ -942,7 +1075,7 @@ def generate_research_interpretation_markdown(
     "  end",
     "",
     "  subgraph Conclusion['Next Steps']",
-    "    C1['External Validation Strongly Justified (PTB-XL, CODE, UK Biobank)']",
+    f"    C1['External Validation: {ext_val_title} (PTB-XL, CODE, UK Biobank)']",
     "  end",
     "",
     "  Findings --> Boundaries --> Conclusion",
@@ -969,13 +1102,12 @@ def generate_research_interpretation_markdown(
     lines.append(
       f"| **{cat.category_name}** | {cat.n_patients:,} | {cat.event_rate * 100:.2f}% | "
       f"{cat.tertile1_event_rate * 100:.2f}% | {cat.tertile3_event_rate * 100:.2f}% | "
-      f"**{cat.gradient_ratio:.2f}x** | +{cat.risk_difference_t3_t1 * 100:.2f}% | {status_str} |"
+      f"**{cat.gradient_ratio:.2f}x** | {cat.risk_difference_t3_t1 * 100:+.2f}% | {status_str} |"
     )
 
   lines.extend([
     "",
-    "> **Key Clinical Takeaway:** Multimodal transformer representations do not merely replicate traditional categories; "
-    "they uncover clinically significant risk heterogeneity among patients who appear homogeneous under conventional ECG criteria.",
+    f"> **Key Clinical Takeaway:** {synthesis.within_a_gradients.summary_narrative}",
     "",
     "### Question 3: Discordance Analysis & Occult Risk Identification",
     f"- {synthesis.discordance.takeaway}",
@@ -1114,10 +1246,10 @@ def generate_research_interpretation_markdown(
     "| :--- | :--- | :--- | :--- |",
     f"| **Alignment Strength Classified** | Prespecified descriptive thresholds | {synthesis.alignment.strength.value.capitalize()} alignment (rho = {synthesis.alignment.spearman_rho:.3f}) | **Satisfied** |",
     f"| **Within-A Gradients Evaluated** | Outcome gradients across all CIIS categories | {grad_str} across all {len(synthesis.within_a_gradients.category_assessments)} strata | **Satisfied** |",
-    f"| **Discordance Interpreted** | 4-quadrant characterization & occult risk | Q2 occult risk identified (RR = {synthesis.discordance.occult_relative_risk:.2f}x) | **Satisfied** |",
+    f"| **Discordance Interpreted** | 4-quadrant characterization & occult risk | Q2 occult risk evaluated (RR = {synthesis.discordance.occult_relative_risk:.2f}x) | **Satisfied** |",
     "| **Statistical vs Utility Formalized** | Strict separation of LRT vs clinical utility | Formal boundary statement documented | **Satisfied** |",
     "| **Contamination Disclosed** | Explicit audit of MIMIC pretraining | In-domain probing label enforced; external claims barred | **Satisfied** |",
-    f"| **Technical Failure Rates Cataloged** | Completeness across models | Model A: {synthesis.technical_failures.model_a_failure_rate * 100:.3f}%, Model B: {synthesis.technical_failures.model_b_failure_rate * 100:.3f}%, Total: {synthesis.technical_failures.cohort_completeness_rate * 100:.3f}% | **Satisfied** |",
+    f"| **Technical Completion Rate Cataloged** | Completeness across models | Model A: {synthesis.technical_failures.model_a_failure_rate * 100:.3f}%, Model B: {synthesis.technical_failures.model_b_failure_rate * 100:.3f}%, Total: {synthesis.technical_failures.cohort_completeness_rate * 100:.3f}% | **Satisfied** |",
     f"| **Prespecified vs Post-Hoc Separated** | Registry of analytical components | {synthesis.analysis_registry.n_prespecified} Prespecified vs {synthesis.analysis_registry.n_post_hoc} Post-Hoc items documented | **Satisfied** |",
     f"| **External Validation Decision** | Formal study recommendation | {synthesis.external_validation_recommendation.status.value.replace('_', ' ').title()} for multi-center cohorts | **Satisfied** |",
     "",

@@ -14,6 +14,7 @@ from ecg_alignment.probe import (
   ProbeConfig,
   ProbeValidationStep,
   TrainedProbe,
+  VerifiedPredictionArtifact,
   build_unified_prediction_table,
   compute_auroc,
   compute_binary_log_loss,
@@ -24,6 +25,7 @@ from ecg_alignment.probe import (
   fit_logistic_probe,
   generate_continuous_predictions_markdown,
   generate_run_manifest,
+  load_and_verify_prediction_artifact,
   load_and_verify_unified_prediction_table,
   load_unified_prediction_table,
   save_run_manifest,
@@ -694,5 +696,42 @@ def test_load_and_verify_checksum_integrity(tmp_path: Path) -> None:
 
   with pytest.raises(ValueError, match="integrity error: SHA-256 mismatch"):
     load_and_verify_unified_prediction_table(parquet_path, requested_mode="real")
+
+
+def test_load_real_mode_fails_when_manifest_missing(tmp_path: Path) -> None:
+  """Test that loading in real mode without companion manifest fails closed unless override is given."""
+  clean_df = pl.DataFrame({
+    "subject_id": [1, 2],
+    "study_id": [101, 102],
+    "split": ["dev", "test"],
+    "model_a_score": [5.0, 12.0],
+    "model_a_category": ["normal", "borderline"],
+    "model_a_valid": [True, True],
+    "model_a_error": [None, None],
+    "model_b_score": [0.03, 0.08],
+    "model_b_log_odds": [-3.5, -2.4],
+    "model_b_valid": [True, True],
+    "model_b_error": [None, None],
+    "mortality_30d": [False, True],
+  })
+  parquet_path = tmp_path / "orphan_predictions.parquet"
+  save_unified_prediction_table(clean_df, parquet_path)
+
+  # 1. Real mode without manifest raises ValueError
+  with pytest.raises(ValueError, match="has no companion manifest"):
+    load_and_verify_unified_prediction_table(parquet_path, requested_mode="real")
+
+  # 2. Real mode with allow_unverified_artifact=True succeeds
+  verified_override = load_and_verify_prediction_artifact(
+    parquet_path, requested_mode="real", allow_unverified_artifact=True
+  )
+  assert len(verified_override.dataframe) == 2
+  assert verified_override.data_mode == "real"
+  assert verified_override.manifest_path is None
+
+  # 3. Simulation mode without manifest succeeds (legacy compatibility for simulated runs)
+  verified_sim = load_and_verify_prediction_artifact(parquet_path, requested_mode="simulation")
+  assert len(verified_sim.dataframe) == 2
+  assert verified_sim.data_mode == "simulation"
 
 

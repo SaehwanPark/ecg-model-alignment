@@ -14,9 +14,9 @@
 This report provides the empirical evaluation of the core scientific questions in the untouched final test partition:
 
 1. **H1 (Partial Alignment):** Confirmed. Spearman rank correlation $\rho = 0.448$ ($p = 0.00e+00$) indicates moderate shared electrophysiologic signal between traditional Model `A` (CIIS) and transformer Model `B` (D-BETA probe).
-2. **H2 (Residual Risk Gradients):** Confirmed. Within fixed traditional risk categories, Model `B` identifies meaningful within-stratum mortality gradients across tertiles.
-3. **H3 (Clinically Informative Discordance):** Confirmed. Patients in the discordant `A-low / B-high` group experience significantly higher mortality than those in `A-low / B-low` (Risk Difference: 0.0010 (95% CI: -0.0035–0.0058), Relative Risk: 1.03 (95% CI: 0.89–1.21)).
-4. **H4 (Incremental Information):** Confirmed. In nested likelihood modeling, adding Model `B` to $f(A)$ provides significant incremental prognostic information (Likelihood Ratio Test statistic $\Delta G^2 = 1.93$, $p = 1.65e-01$, $\Delta\text{AUROC} = 0.0115 (95% CI: -0.0026–0.0297)$).
+2. **H2 (Residual Risk Gradients):** Not Confirmed. Within fixed traditional risk categories, Model `B` did not identify consistent residual risk gradients meeting the prespecified 1.50x threshold across tertiles (mean gradient ratio 1.03x).
+3. **H3 (Clinically Informative Discordance):** Not Confirmed (Null/Inconclusive). Mortality in the discordant `A-low / B-high` group was not significantly different from `A-low / B-low` (Risk Difference: 0.0010 (95% CI: -0.0035–0.0058), Relative Risk: 1.03 (95% CI: 0.89–1.21)x).
+4. **H4 (Incremental Information):** Not Confirmed (Null/Inconclusive). Model `B` did not provide statistically significant incremental prognostic information beyond $f(A)$ on the held-out test partition (Held-out $\Delta\text{AUROC} = 0.0115 (95% CI: -0.0026–0.0297)$, Descriptive LRT statistic $\Delta G^2 = 1.93$, $p = 1.65e-01$).
 
 ---
 
@@ -38,11 +38,11 @@ flowchart LR
 
 ## 3. Global Discriminative & Calibration Performance (Final Test Partition)
 
-| Metric | Model A (Traditional CIIS) | Model B (D-BETA Linear Probe) | Difference (Model B − Model A) | $p$-value |
+| Metric | Model A (Traditional CIIS) | Model B (D-BETA Linear Probe) | Difference / Improvement | $p$-value |
 | :--- | :--- | :--- | :--- | :--- |
-| **AUROC** | 0.4848 (95% CI: 0.4676–0.5051) | 0.4913 (95% CI: 0.4770–0.5046) | **0.0065 (95% CI: -0.0056–0.0257)** | `0.4800` |
-| **AUPRC** | 0.0283 (95% CI: 0.0262–0.0307) | 0.0286 (95% CI: 0.0264–0.0322) | **0.0003 (95% CI: -0.0013–0.0025)** | — |
-| **Brier Score** | 0.0283 (95% CI: 0.0270–0.0300) | 0.2096 (95% CI: 0.2076–0.2117) | **-0.1813 (95% CI: -0.1840–-0.1789)** (improvement) | — |
+| **AUROC** | 0.4848 (95% CI: 0.4676–0.5051) | 0.4913 (95% CI: 0.4770–0.5046) | **0.0065 (95% CI: -0.0056–0.0257)** (B − A) | `0.4800` |
+| **AUPRC** | 0.0283 (95% CI: 0.0262–0.0307) | 0.0286 (95% CI: 0.0264–0.0322) | **0.0003 (95% CI: -0.0013–0.0025)** (B − A) | — |
+| **Brier Score** | 0.0283 (95% CI: 0.0270–0.0300) | 0.2096 (95% CI: 0.2076–0.2117) | **-0.1813 (95% CI: -0.1840–-0.1789)** (deterioration A − B) | — |
 | **Calibration Slope** | 0.927 | -0.040 | — | — |
 | **Calibration Intercept** | -0.265 | -3.527 | — | — |
 
@@ -101,8 +101,8 @@ Threshold criteria: `A cutoff = 15.0, B cutoff = 0.3653`
 ### Incremental Test of Adding Model B to Model A
 
 - **Held-out AUROC Improvement ($\Delta\text{AUROC}$):** **0.0115 (95% CI: -0.0026–0.0297)**
-- **Held-out Brier Score Improvement ($\Delta\text{Brier}$):** **0.0000 (95% CI: -0.0000–0.0000)**
-- **Held-out Log-Loss Reduction ($\Delta\text{Log-Loss}$):** **+0.0000** (-0.0000–0.0001)
+- **Held-out Brier Score Improvement ($\Delta\text{Brier}$):** **0.0000 (95% CI: -0.0000–0.0000)** (improvement)
+- **Held-out Log-Loss Reduction ($\Delta\text{Log-Loss}$):** **+0.0000** (-0.0000–0.0001) (reduction/improvement)
 - **Descriptive Development LRT Statistic ($\Delta G^2$):** `1.93` ($df=1$, $p = 1.65e-01$)
 
 > [!NOTE]

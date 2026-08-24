@@ -1081,10 +1081,10 @@ def generate_sensitivity_report_markdown(
     lines.extend([
       "| Cohort Strategy | Patients ($N$) | Events ($N$) | Event Rate (%) | Model A AUROC (95% CI) | Model B AUROC (95% CI) | $\\Delta\\text{AUROC}$ (B − A) | Spearman $\\rho$ |",
       "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
-      f"| **Earliest Eligible Index ECG (Primary)** | {ca.earliest_n:,} | {ca.earliest_events:,} | {ca.earliest_event_rate*100:.2f}% | {ca.earliest_model_a_auroc.formatted()} | {ca.earliest_model_b_auroc.formatted()} | **+{ca.earliest_delta_auroc.point_estimate:.4f}** ({ca.earliest_delta_auroc.ci_lower:.4f}–{ca.earliest_delta_auroc.ci_upper:.4f}) | {ca.earliest_spearman_rho:.3f} |",
-      f"| **Admission-Anchored Index ECG** | {ca.admission_n:,} | {ca.admission_events:,} | {ca.admission_event_rate*100:.2f}% | {ca.admission_model_a_auroc.formatted()} | {ca.admission_model_b_auroc.formatted()} | **+{ca.admission_delta_auroc.point_estimate:.4f}** ({ca.admission_delta_auroc.ci_lower:.4f}–{ca.admission_delta_auroc.ci_upper:.4f}) | {ca.admission_spearman_rho:.3f} |",
+      f"| **Earliest Eligible Index ECG (Primary)** | {ca.earliest_n:,} | {ca.earliest_events:,} | {ca.earliest_event_rate*100:.2f}% | {ca.earliest_model_a_auroc.formatted()} | {ca.earliest_model_b_auroc.formatted()} | **{ca.earliest_delta_auroc.point_estimate:+.4f}** ({ca.earliest_delta_auroc.ci_lower:.4f}–{ca.earliest_delta_auroc.ci_upper:.4f}) | {ca.earliest_spearman_rho:.3f} |",
+      f"| **Admission-Anchored Index ECG** | {ca.admission_n:,} | {ca.admission_events:,} | {ca.admission_event_rate*100:.2f}% | {ca.admission_model_a_auroc.formatted()} | {ca.admission_model_b_auroc.formatted()} | **{ca.admission_delta_auroc.point_estimate:+.4f}** ({ca.admission_delta_auroc.ci_lower:.4f}–{ca.admission_delta_auroc.ci_upper:.4f}) | {ca.admission_spearman_rho:.3f} |",
       "",
-      f"> **Finding:** Model B discriminative advantage ($\\Delta\\text{{AUROC}}$) is +{ca.earliest_delta_auroc.point_estimate:.4f} (earliest) and +{ca.admission_delta_auroc.point_estimate:.4f} (admission-anchored), with Spearman rank alignment $\\rho = {ca.earliest_spearman_rho:.3f}$ and {ca.admission_spearman_rho:.3f} across index definitions.",
+      f"> **Finding:** Model B discriminative increment ($\\Delta\\text{{AUROC}}$) is {ca.earliest_delta_auroc.point_estimate:+.4f} (earliest) and {ca.admission_delta_auroc.point_estimate:+.4f} (admission-anchored), with Spearman rank alignment $\\rho = {ca.earliest_spearman_rho:.3f}$ and {ca.admission_spearman_rho:.3f} across index definitions.",
     ])
   else:
     lines.append("*Cohort anchoring sensitivity was not run (admission-anchored cohort dataset not provided).*")
@@ -1105,13 +1105,13 @@ def generate_sensitivity_report_markdown(
     for oh in result.outcome_horizons:
       p_val_str = "$p < 0.001$" if oh.incremental_pvalue < 0.001 else f"$p = {oh.incremental_pvalue:.4f}$"
       lines.append(
-        f"| **{oh.horizon_name}** | {oh.n_total:,} | {oh.n_events:,} | {oh.event_rate*100:.2f}% | {oh.model_a_auroc.formatted()} | {oh.model_b_auroc.formatted()} | **+{oh.delta_auroc.point_estimate:.4f}** | $\\Delta G^2 = {oh.incremental_lrt_stat:.2f}$ | {p_val_str} |"
+        f"| **{oh.horizon_name}** | {oh.n_total:,} | {oh.n_events:,} | {oh.event_rate*100:.2f}% | {oh.model_a_auroc.formatted()} | {oh.model_b_auroc.formatted()} | **{oh.delta_auroc.point_estimate:+.4f}** | $\\Delta G^2 = {oh.incremental_lrt_stat:.2f}$ | {p_val_str} |"
       )
     all_positive = all(oh.delta_auroc.point_estimate > 0 for oh in result.outcome_horizons)
     min_delta = min(oh.delta_auroc.point_estimate for oh in result.outcome_horizons)
     max_delta = max(oh.delta_auroc.point_estimate for oh in result.outcome_horizons)
     summary_text = (
-      f"Across evaluated mortality endpoints, Model B demonstrates positive discriminative increment over Model A ($\\Delta\\text{{AUROC}}$ range: +{min_delta:.4f} to +{max_delta:.4f})."
+      f"Across evaluated mortality endpoints, Model B demonstrates positive discriminative increment over Model A ($\\Delta\\text{{AUROC}}$ range: {min_delta:+.4f} to {max_delta:+.4f})."
       if all_positive
       else "Across evaluated mortality endpoints, performance comparisons are detailed above."
     )
@@ -1158,7 +1158,7 @@ def generate_sensitivity_report_markdown(
     lines.extend([
       "| Cohort Subset | Patients ($N$) | Events ($N$) | Event Rate (%) | Model A AUROC (95% CI) | Model B AUROC (95% CI) | $\\Delta\\text{AUROC}$ | Spearman $\\rho$ |",
       "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
-      f"| **{qf.subset_name}** | {qf.n_total:,} | {qf.n_events:,} | {qf.event_rate*100:.2f}% | {qf.model_a_auroc.formatted()} | {qf.model_b_auroc.formatted()} | **+{qf.delta_auroc.point_estimate:.4f}** | {qf.spearman_rho:.3f} |",
+      f"| **{qf.subset_name}** | {qf.n_total:,} | {qf.n_events:,} | {qf.event_rate*100:.2f}% | {qf.model_a_auroc.formatted()} | {qf.model_b_auroc.formatted()} | **{qf.delta_auroc.point_estimate:+.4f}** | {qf.spearman_rho:.3f} |",
     ])
   else:
     lines.append("*Waveform quality filtering sensitivity was not run (quality mask not provided).*")
@@ -1178,7 +1178,7 @@ def generate_sensitivity_report_markdown(
     ])
     for at in result.alternative_traditional:
       lines.append(
-        f"| **{at.traditional_model_name}** | {at.traditional_auroc.formatted()} | {at.traditional_auprc.formatted()} | {at.spearman_with_model_b:.3f} | **+{at.model_b_delta_auroc.point_estimate:.4f}** ({at.model_b_delta_auroc.ci_lower:.4f}–{at.model_b_delta_auroc.ci_upper:.4f}) |"
+        f"| **{at.traditional_model_name}** | {at.traditional_auroc.formatted()} | {at.traditional_auprc.formatted()} | {at.spearman_with_model_b:.3f} | **{at.model_b_delta_auroc.point_estimate:+.4f}** ({at.model_b_delta_auroc.ci_lower:.4f}–{at.model_b_delta_auroc.ci_upper:.4f}) |"
       )
   else:
     lines.append("*Alternative traditional risk scores were not provided.*")
@@ -1195,7 +1195,7 @@ def generate_sensitivity_report_markdown(
     lines.extend([
       "| Multimodal Model | Architecture | Embedding Dim | Test AUROC (95% CI) | $\\Delta\\text{AUROC}$ vs Traditional CIIS | Spearman $\\rho$ with D-BETA |",
       "| :--- | :--- | :--- | :--- | :--- | :--- |",
-      f"| **{st.transformer_name}** | Vision Transformer (BEiT) | {st.embedding_dim}-d | {st.test_auroc.formatted()} | **+{st.delta_auroc_vs_ciis.point_estimate:.4f}** ({st.delta_auroc_vs_ciis.ci_lower:.4f}–{st.delta_auroc_vs_ciis.ci_upper:.4f}) | {st.spearman_with_dbeta:.3f} |",
+      f"| **{st.transformer_name}** | Vision Transformer (BEiT) | {st.embedding_dim}-d | {st.test_auroc.formatted()} | **{st.delta_auroc_vs_ciis.point_estimate:+.4f}** ({st.delta_auroc_vs_ciis.ci_lower:.4f}–{st.delta_auroc_vs_ciis.ci_upper:.4f}) | {st.spearman_with_dbeta:.3f} |",
     ])
   else:
     lines.append("*Secondary transformer comparison was not run (CarDSLab ECG-CLIP embeddings not provided).*")
@@ -1215,7 +1215,7 @@ def generate_sensitivity_report_markdown(
     ])
     for ds in result.demographic_subgroups:
       lines.append(
-        f"| **{ds.subgroup_variable}: {ds.subgroup_level}** | {ds.n_total:,} | {ds.n_events:,} | {ds.event_rate*100:.2f}% | {ds.model_a_auroc.formatted()} | {ds.model_b_auroc.formatted()} | **+{ds.delta_auroc.point_estimate:.4f}** | {ds.model_b_auprc.formatted()} | {ds.spearman_rho:.3f} |"
+        f"| **{ds.subgroup_variable}: {ds.subgroup_level}** | {ds.n_total:,} | {ds.n_events:,} | {ds.event_rate*100:.2f}% | {ds.model_a_auroc.formatted()} | {ds.model_b_auroc.formatted()} | **{ds.delta_auroc.point_estimate:+.4f}** | {ds.model_b_auprc.formatted()} | {ds.spearman_rho:.3f} |"
       )
     lines.extend([
       "",
@@ -1242,6 +1242,35 @@ def generate_sensitivity_report_markdown(
 
   eval_summary = ", ".join(evaluated_items) if evaluated_items else "No sensitivity dimensions evaluated"
 
+  delta_aurocs: list[float] = []
+  if ca is not None:
+    delta_aurocs.append(ca.earliest_delta_auroc.point_estimate)
+    delta_aurocs.append(ca.admission_delta_auroc.point_estimate)
+  for oh in result.outcome_horizons:
+    delta_aurocs.append(oh.delta_auroc.point_estimate)
+  if qf is not None:
+    delta_aurocs.append(qf.delta_auroc.point_estimate)
+  for at in result.alternative_traditional:
+    delta_aurocs.append(at.model_b_delta_auroc.point_estimate)
+  if st is not None:
+    delta_aurocs.append(st.delta_auroc_vs_ciis.point_estimate)
+  for ds in result.demographic_subgroups:
+    delta_aurocs.append(ds.delta_auroc.point_estimate)
+
+  if delta_aurocs:
+    n_pos = sum(1 for d in delta_aurocs if d > 0)
+    n_neg = len(delta_aurocs) - n_pos
+    if n_neg == 0:
+      invariance_str = (
+        f"Evaluated sensitivity analyses confirmed directional consistency with primary findings across all {len(delta_aurocs)} specifications."
+      )
+    else:
+      invariance_str = (
+        f"Evaluated sensitivity analyses showed mixed or near-null effect directions across specifications ({n_pos} positive, {n_neg} non-positive delta AUROCs); directional consistency was not uniform."
+      )
+  else:
+    invariance_str = "No sensitivity dimensions were evaluated."
+
   lines.extend([
     "",
     "---",
@@ -1249,7 +1278,7 @@ def generate_sensitivity_report_markdown(
     "## 9. Conclusion & Stage 10 Exit Criteria",
     "",
     f"1. **Evaluated Sensitivity Dimensions**: {eval_summary}.",
-    "2. **Conclusion Invariance**: Evaluated sensitivity analyses confirmed directional consistency with primary findings.",
+    f"2. **Conclusion Invariance**: {invariance_str}",
     "3. **Firewall Integrity**: All tests strictly respected the predictor-information firewall and patient disjointness.",
     "",
   ])
