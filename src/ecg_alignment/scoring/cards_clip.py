@@ -123,9 +123,20 @@ def load_cards_clip_model(
   import torch
   from transformers import CLIPImageProcessor, CLIPModel
 
-  logger.info("Loading ECG-CLIP model from %s (revision %s) on %s", model_name, revision, device)
-  loaded_model = cast(Any, CLIPModel.from_pretrained(model_name, revision=revision))
-  loaded_processor = cast(Any, CLIPImageProcessor.from_pretrained(model_name, revision=revision))
+  try:
+    loaded_model = cast(Any, CLIPModel.from_pretrained(model_name, revision=revision))
+    loaded_processor = cast(Any, CLIPImageProcessor.from_pretrained(model_name, revision=revision))
+  except Exception as err:
+    err_str = str(err)
+    if "401" in err_str or "403" in err_str or "gated" in err_str.lower() or "restricted" in err_str.lower():
+      msg = (
+        f"Access to Hugging Face repository '{model_name}' requires authentication under research terms "
+        f"(https://huggingface.co/{model_name}). Ensure your HF_TOKEN has granted repository access."
+      )
+      logger.error(msg)
+      raise PermissionError(msg) from err
+    logger.error("Failed to load CarDSLab ECG-CLIP model from %s: %s", model_name, err)
+    raise RuntimeError(f"Failed to load CarDSLab ECG-CLIP model from {model_name}: {err}") from err
 
   model = loaded_model.to(torch.device(device))
   model.eval()
