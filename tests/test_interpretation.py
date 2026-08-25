@@ -257,6 +257,28 @@ def test_evaluate_clinical_utility_distinction() -> None:
   assert distinction_emp.delta_auroc == 0.08
   assert "p < 10^-15" in distinction_emp.statistical_summary
 
+  # 3. Test that incremental metric takes priority over marginal metric
+  inc_diff = IncrementalInformationResult(
+    model_a_only=NestedModelEvaluation("Model A", "y ~ splines(A)", -120.0, 246.0, 252.0, 0.50, 0.70, 0.08),
+    model_b_only=NestedModelEvaluation("Model B", "y ~ B", -110.0, 224.0, 230.0, 0.45, 0.76, 0.07),
+    model_combined=NestedModelEvaluation("Model A + B", "y ~ splines(A) + B", -95.0, 198.0, 208.0, 0.40, 0.78, 0.06),
+    lrt_statistic=12.0,
+    lrt_degrees_of_freedom=1,
+    lrt_pvalue=0.08,  # Non-significant LRT should not block affirmative when CI lower > 0
+    auroc_improvement=BootstrapConfidenceInterval(0.04, 0.01, 0.07),  # Strictly positive incremental
+    brier_improvement=BootstrapConfidenceInterval(0.01, 0.005, 0.02),
+    held_out_loss_reduction=0.03,
+  )
+  comp_marginal = PerformanceComparisonResult(
+    delta_auroc=BootstrapConfidenceInterval(0.12, 0.09, 0.15),  # Marginal B vs A
+    delta_auprc=BootstrapConfidenceInterval(0.08, 0.05, 0.11),
+    delta_brier=BootstrapConfidenceInterval(0.03, 0.01, 0.05),
+    p_value_auroc_diff=1e-5,
+  )
+  dist_prio = evaluate_clinical_utility_distinction(inc_diff, comp_marginal)
+  assert dist_prio.delta_auroc == 0.04  # Incremental AUROC, not marginal 0.12
+  assert "Incremental Delta AUROC = 0.0400" in dist_prio.statistical_summary
+
 
 # -----------------------------------------------------------------------------
 # Unit Tests: Pretraining Contamination Audit & Claims Linter

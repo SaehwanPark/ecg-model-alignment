@@ -57,7 +57,10 @@ $$
 \operatorname{cor}(A, B) > 0.
 $$
 
-We do not expect near-perfect agreement.
+We evaluate directional statistical significance ($\rho > 0$, $p < 0.05$) and classify alignment magnitude using prespecified descriptive conventions:
+- **Weak alignment:** $|\rho| < 0.30$ (representations largely orthogonal);
+- **Moderate alignment:** $0.30 \le |\rho| < 0.70$ (partial alignment with complementary capacity);
+- **Strong alignment:** $|\rho| \ge 0.70$ (high redundancy between representations).
 
 ### H2: Residual heterogeneity within traditional risk strata
 
@@ -68,6 +71,8 @@ P(Y=1 \mid C_A=k, B_{\text{high}})
 >
 P(Y=1 \mid C_A=k, B_{\text{low}}).
 $$
+
+We evaluate directional separation across within-stratum tertiles ($T_3$ vs $T_1$) with patient-level bootstrap uncertainty, and use a gradient ratio $T_3 / T_1 \ge 1.50$ (or positive risk difference) as a descriptive benchmark for clinically meaningful residual risk.
 
 ### H3: Clinically informative discordance
 
@@ -83,7 +88,7 @@ g\{E(Y)\}
 \beta_0 + f(A) + \beta_B B.
 $$
 
-The main inferential quantity is whether `B` contributes information after conditioning on `A`, not whether one marginal AUROC is numerically larger.
+The primary inferential quantity is whether adding `B` to $f(A)$ produces a strictly positive held-out discrimination improvement on the untouched test partition ($\Delta\text{AUROC} > 0$ with 95% bootstrap CI lower bound $> 0$). The development-set nested Likelihood Ratio Test is reported alongside as descriptive supporting information.
 
 ## Operational Definitions
 

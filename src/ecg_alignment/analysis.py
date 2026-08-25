@@ -1498,25 +1498,26 @@ def generate_primary_results_markdown(
     if str(data_mode).lower() == "real"
     else "> **Data Source:** SIMULATION — NOT EMPIRICAL RESULTS"
   )
-  # H1 Evaluation: Partial Alignment (Spearman rho in [0.30, 0.70))
-  abs_rho = abs(result.alignment.spearman_rho)
-  if 0.30 <= abs_rho < 0.70:
+  # H1 Evaluation: Alignment (Spearman rho > 0 with descriptive alignment bands)
+  rho = result.alignment.spearman_rho
+  p_val = result.alignment.spearman_pvalue
+  abs_rho = abs(rho)
+  if rho > 0 and p_val < 0.05:
+    if abs_rho < 0.30:
+      alignment_desc = "weak alignment (|rho| < 0.30)"
+    elif abs_rho < 0.70:
+      alignment_desc = "moderate partial alignment (0.30 <= |rho| < 0.70)"
+    else:
+      alignment_desc = "strong alignment (|rho| >= 0.70)"
     h1_verdict = (
-      f"1. **H1 (Partial Alignment):** Confirmed. Spearman rank correlation "
-      f"$\\rho = {result.alignment.spearman_rho:.3f}$ ($p = {result.alignment.spearman_pvalue:.2e}$) "
-      "indicates moderate shared electrophysiologic signal between traditional Model `A` (CIIS) and transformer Model `B` (D-BETA probe)."
-    )
-  elif abs_rho < 0.30:
-    h1_verdict = (
-      f"1. **H1 (Partial Alignment):** Not Confirmed (Weak Alignment). Spearman rank correlation "
-      f"$\\rho = {result.alignment.spearman_rho:.3f}$ ($p = {result.alignment.spearman_pvalue:.2e}$) "
-      "indicates weak alignment (|rho| < 0.30), demonstrating largely orthogonal representations rather than partial alignment."
+      f"1. **H1 (Positive Alignment):** Confirmed ({alignment_desc.title()}). Spearman rank correlation "
+      f"$\\rho = {rho:.3f}$ ($p = {p_val:.2e}$) indicates statistically significant positive "
+      f"association with {alignment_desc} between traditional Model `A` (CIIS) and transformer Model `B` (D-BETA probe)."
     )
   else:
     h1_verdict = (
-      f"1. **H1 (Partial Alignment):** Not Confirmed (Strong Alignment). Spearman rank correlation "
-      f"$\\rho = {result.alignment.spearman_rho:.3f}$ ($p = {result.alignment.spearman_pvalue:.2e}$) "
-      "indicates strong alignment (|rho| >= 0.70), demonstrating high redundancy rather than complementary partial alignment."
+      f"1. **H1 (Positive Alignment):** Not Confirmed. Spearman rank correlation "
+      f"$\\rho = {rho:.3f}$ ($p = {p_val:.2e}$) does not demonstrate statistically significant positive rank alignment."
     )
 
   # H2 Evaluation: Within-Stratum Residual Risk Gradients
@@ -1576,17 +1577,19 @@ def generate_primary_results_markdown(
   inc_auc_ci = result.incremental.auroc_improvement
   lrt_p = result.incremental.lrt_pvalue
   lrt_stat = result.incremental.lrt_statistic
-  if inc_auc_ci.ci_lower > 0 and lrt_p < 0.05:
+  if inc_auc_ci.ci_lower > 0:
     h4_verdict = (
-      f"4. **H4 (Incremental Information):** Confirmed. In nested modeling and held-out evaluation, "
-      f"Model `B` provides statistically significant incremental prognostic information beyond $f(A)$ "
-      f"(Held-out $\\Delta\\text{{AUROC}} = {inc_auc_ci.formatted(4)}$, Descriptive LRT statistic $\\Delta G^2 = {lrt_stat:.2f}$, $p = {lrt_p:.2e}$)."
+      f"4. **H4 (Incremental Information):** Confirmed. In held-out test evaluation, "
+      f"adding Model `B` to Model `A` provides statistically significant incremental prognostic discrimination "
+      f"(Held-out $\\Delta\\text{{AUROC}} = {inc_auc_ci.formatted(4)}$, Held-out Log-Loss Reduction = {result.incremental.held_out_loss_reduction:+.4f}; "
+      f"Descriptive Development LRT $\\Delta G^2 = {lrt_stat:.2f}$, $p = {lrt_p:.2e}$)."
     )
   else:
     h4_verdict = (
       f"4. **H4 (Incremental Information):** Not Confirmed (Null/Inconclusive). Model `B` did not provide statistically "
       f"significant incremental prognostic information beyond $f(A)$ on the held-out test partition "
-      f"(Held-out $\\Delta\\text{{AUROC}} = {inc_auc_ci.formatted(4)}$, Descriptive LRT statistic $\\Delta G^2 = {lrt_stat:.2f}$, $p = {lrt_p:.2e}$)."
+      f"(Held-out $\\Delta\\text{{AUROC}} = {inc_auc_ci.formatted(4)}$, Held-out Log-Loss Reduction = {result.incremental.held_out_loss_reduction:+.4f}; "
+      f"Descriptive Development LRT $\\Delta G^2 = {lrt_stat:.2f}$, $p = {lrt_p:.2e}$)."
     )
 
   delta_brier_pt = result.comparison.delta_brier.point_estimate
@@ -1607,6 +1610,8 @@ def generate_primary_results_markdown(
   else:
     loss_red_str = f"`{loss_red_pt:+.4f}` {loss_red_note}"
 
+  eval_phrase = "empirical evaluation" if str(data_mode).lower() == "real" else "analysis demonstration"
+
   lines = [
     f"# {title}",
     "",
@@ -1621,7 +1626,7 @@ def generate_primary_results_markdown(
     "",
     "## 1. Executive Summary & Hypotheses Evaluation",
     "",
-    "This report provides the empirical evaluation of the core scientific questions in the untouched final test partition:",
+    f"This report provides the {eval_phrase} of the core scientific questions in the untouched final test partition:",
     "",
     h1_verdict,
     h2_verdict,

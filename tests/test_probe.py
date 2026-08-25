@@ -735,3 +735,98 @@ def test_load_real_mode_fails_when_manifest_missing(tmp_path: Path) -> None:
   assert verified_sim.data_mode == "simulation"
 
 
+def test_load_and_verify_malformed_and_incomplete_manifests(tmp_path: Path) -> None:
+  """Test fail-closed behavior for malformed, non-dict, and incomplete JSON manifests."""
+  clean_df = pl.DataFrame({
+    "subject_id": [1, 2],
+    "study_id": [101, 102],
+    "split": ["dev", "test"],
+    "model_a_score": [5.0, 12.0],
+    "model_a_category": ["normal", "borderline"],
+    "model_a_valid": [True, True],
+    "model_a_error": [None, None],
+    "model_b_score": [0.03, 0.08],
+    "model_b_log_odds": [-3.5, -2.4],
+    "model_b_valid": [True, True],
+    "model_b_error": [None, None],
+    "mortality_30d": [False, True],
+  })
+  parquet_path = tmp_path / "preds_manifest_test.parquet"
+  save_unified_prediction_table(clean_df, parquet_path)
+  manifest_path = tmp_path / "preds_manifest_test.parquet.manifest.json"
+
+  # 1. Malformed JSON (syntax error)
+  manifest_path.write_text("{ broken json", encoding="utf-8")
+  with pytest.raises(ValueError, match="is malformed or unreadable"):
+    load_and_verify_prediction_artifact(parquet_path, requested_mode="real")
+
+  # 2. Non-dict JSON (e.g., JSON list)
+  manifest_path.write_text("[\"not\", \"a\", \"dict\"]", encoding="utf-8")
+  with pytest.raises(ValueError, match="expected JSON object"):
+    load_and_verify_prediction_artifact(parquet_path, requested_mode="real")
+
+  # 3. Missing data_mode in real mode
+  manifest_path.write_text(json.dumps({"predictions_artifact_sha256": "abc"}), encoding="utf-8")
+  with pytest.raises(ValueError, match="is missing a valid 'data_mode' field"):
+    load_and_verify_prediction_artifact(parquet_path, requested_mode="real")
+
+  # 4. Missing predictions_artifact_sha256 in real mode
+  manifest_path.write_text(json.dumps({"data_mode": "real"}), encoding="utf-8")
+  with pytest.raises(ValueError, match="is missing 'predictions_artifact_sha256' field"):
+    load_and_verify_prediction_artifact(parquet_path, requested_mode="real")
+
+  # 5. Overriding with allow_unverified_artifact succeeds
+  verified = load_and_verify_prediction_artifact(
+    parquet_path, requested_mode="real", allow_unverified_artifact=True
+  )
+  assert len(verified.dataframe) == 2
+
+
+def test_extract_transformer_embeddings_checkpoint_resume(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  """Test that embedding extraction resumes correctly from valid checkpoint."""
+  cohort_df = pl.DataFrame({
+    "subject_id": [1, 2, 3, 4],
+    "study_id": [101, 102, 103, 104],
+    "path": ["files/p1", "files/p2", "files/p3", "files/p4"],
+  })
+
+  read_count = 0
+
+  def mock_read(p: Path | str) -> tuple[npt.NDArray[np.float64], list[str], int]:
+    nonlocal read_count
+    read_count += 1
+    return np.zeros((5000, 12), dtype=np.float64), ["I"] * 12, 500
+
+  monkeypatch.setattr("ecg_alignment.probe.read_ecg_waveform", mock_read)
+  adapter = MockEcgAdapter(embedding_dim=4)
+  ckpt_file = tmp_path / "checkpoints" / "resume_test.npz"
+
+  # First run: process batch 1 (2 records) and save checkpoint
+  meta_df1, embs1 = extract_transformer_embeddings(
+    cohort_df.slice(0, 4),
+    adapter=adapter,
+    batch_size=2,
+    checkpoint_path=ckpt_file,
+    checkpoint_interval=2,
+  )
+  assert read_count == 4
+  assert ckpt_file.exists()
+
+  # Reset read_count
+  read_count = 0
+
+  # Second run with same cohort: should load all 4 from checkpoint without re-reading
+  meta_df2, embs2 = extract_transformer_embeddings(
+    cohort_df.slice(0, 4),
+    adapter=adapter,
+    batch_size=2,
+    checkpoint_path=ckpt_file,
+    checkpoint_interval=2,
+  )
+  assert read_count == 0
+  assert np.array_equal(embs1, embs2)
+  assert meta_df1["subject_id"].to_list() == meta_df2["subject_id"].to_list()
+
+

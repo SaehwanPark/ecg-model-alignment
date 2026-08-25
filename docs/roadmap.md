@@ -372,43 +372,29 @@ Create a patient-level analytic cohort before fitting the transformer probe.
 
 Generate `A` and `B` on exactly the same index ECG cohort.
 
-### `A`
+### Checklist
 
-- [x] Compute continuous CIIS.
-- [x] Compute prespecified CIIS category.
-- [x] Record technical failure reasons.
-
-### `B`
-
-For D-BETA:
-
-- [x] Extract frozen embedding on development set.
-- [x] Extract frozen embedding on validation set.
-- [x] Do not inspect final-test outcomes.
-- [x] Fit L2-regularized logistic regression using development outcomes only.
-- [x] Select regularization on validation data only.
-- [x] Freeze probe coefficients.
-- [x] Generate final-test `B` scores.
-
-### Joint checks
-
-- [x] Confirm one row per patient.
-- [x] Confirm identical ECG ID for `A` and `B`.
-- [x] Confirm no clinical predictors were accidentally merged.
-- [x] Confirm all score generation can be reproduced from IDs and configuration.
+- [x] `[code]` Compute continuous CIIS with technical failure tracking.
+- [x] `[code]` Compute prespecified CIIS categories.
+- [x] `[code]` Extract frozen transformer embeddings with batching and resumable checkpoints.
+- [x] `[code]` Fit L2-regularized logistic regression probe on dev set with validation-tuned C.
+- [x] `[code]` Generate score predictions on test partition.
+- [x] `[code]` Unified prediction table schema and firewall verification.
+- [x] `[code]` Simulation negative control execution verified.
+- [ ] `[data]` Authoritative empirical scoring on full MIMIC-IV-ECG waveform cohort (~161k records).
 
 ### Deliverables
 
 - [x] `src/ecg_alignment/probe.py`
 - [x] `tests/test_probe.py`
-- [x] `reports/continuous-predictions.md`
+- [x] `reports/continuous-predictions.md` (simulation demonstration)
 - [x] versioned analysis configuration
-- [x] derived score table in the protected analysis environment
+- [ ] derived empirical score table (protected local storage)
 
 ### Exit Criteria
 
-- [x] Continuous `A` and `B` exist for the common test cohort.
-- [x] Probe specification is frozen.
+- [x] Code pipeline verified and covered by unit/integration tests.
+- [ ] Full-cohort empirical predictions generated.
 
 ## Stage 9 — Primary Analysis
 
@@ -416,136 +402,94 @@ For D-BETA:
 
 Answer alignment, residual-risk, discordance, and incremental-information questions.
 
-### Global alignment
+### Checklist
 
-- [x] Compute Spearman correlation.
-- [x] Plot `A` vs `B`.
-- [x] Plot smooth $E(B \mid A)$.
-- [x] Create two-dimensional outcome-risk surface.
-
-### Global performance
-
-- [x] Compute AUROC for `A`.
-- [x] Compute AUROC for `B`.
-- [x] Compute AUPRC for `A`.
-- [x] Compute AUPRC for `B`.
-- [x] Evaluate Brier score where meaningful.
-- [x] Generate calibration plots where meaningful.
-- [x] Bootstrap patient-level confidence intervals.
-
-### `A`-stratified analysis
-
-- [x] Apply published `A` categories.
-- [x] Report `N` and event rate per category.
-- [x] Report `B` distribution per category.
-- [x] Split `B` into prespecified quantiles within or across `A` categories.
-- [x] Estimate event rates across `B` quantiles.
-- [x] Compute `B` AUROC/AUPRC within `A` categories where estimable.
-- [x] Avoid treating range-restricted `A` performance as a fair within-category comparison.
-
-### Discordance
-
-- [x] Define prespecified low/high score rules.
-- [x] Create `A-low/B-low`.
-- [x] Create `A-low/B-high`.
-- [x] Create `A-high/B-low`.
-- [x] Create `A-high/B-high`.
-- [x] Compare observed event rates.
-- [x] Bootstrap risk differences and ratios.
-
-### Incremental information
-
-- [x] Fit `Y ~ f(A)`.
-- [x] Fit `Y ~ B`.
-- [x] Fit `Y ~ f(A) + B`.
-- [x] Compare held-out log loss.
-- [x] Compare AUROC.
-- [x] Compare Brier score.
-- [x] Test incremental contribution of `B`.
-- [x] Keep NRI/IDI out of the primary analysis.
+- [x] `[code]` Compute Spearman rank correlation and 2D risk surface.
+- [x] `[code]` Compute global discriminative metrics (AUROC, AUPRC) and Brier scores.
+- [x] `[code]` Compute patient-level paired bootstrap confidence intervals.
+- [x] `[code]` Compute stratified residual risk across traditional CIIS categories.
+- [x] `[code]` Compute 4-quadrant discordance contrasts and risk differences.
+- [x] `[code]` Compute incremental prognostic value (held-out ΔAUROC, ΔBrier, ΔLog-Loss) and descriptive LRT.
+- [x] `[code]` Exclude NRI/IDI from primary analysis.
+- [x] `[code]` Simulation negative control produces expected null verdicts (H2–H4 not confirmed).
+- [ ] `[data]` Authoritative empirical evaluation on untouched real test partition.
 
 ### Deliverables
 
 - [x] `src/ecg_alignment/analysis.py`
 - [x] `tests/test_analysis.py`
-- [x] `reports/primary-results.md`
+- [x] `reports/primary-results.md` (simulation demonstration)
 - [x] reproducible figure outputs
 
 ### Exit Criteria
 
-- [x] Every primary result comes from the untouched final test set.
-- [x] Every reported uncertainty estimate is patient-level.
-- [x] Analysis can be rerun from a single documented command or workflow.
+- [x] Reusable analysis logic verified with pure functions and bootstrap tests.
+- [ ] Empirical test set primary findings generated.
 
 ## Stage 10 — Sensitivity Analyses
 
 ### Checklist
 
-- [x] Earliest eligible ECG vs admission-anchored ECG.
-- [x] In-hospital mortality.
-- [x] 90-day mortality.
-- [x] 1-year mortality if follow-up is supportable.
-- [x] Alternative regularization strength within the prespecified validation procedure.
-- [x] Alternative simple probe such as elastic-net logistic regression.
-- [x] Exclusion of low-quality waveforms.
-- [x] Alternative traditional score implementation if justified.
-- [x] CarDSLab embedding analysis as an engineering/secondary comparator.
-- [x] PULSE secondary analysis if technically worthwhile.
-- [x] Optional demographic subgroup evaluation using demographics only as evaluation strata.
+- [x] `[code]` Outcome horizon sensitivity (in-hospital, 90-day, 1-year mortality).
+- [x] `[code]` Alternative probe architectures (L1, Elastic-Net, alternative C values).
+- [x] `[code]` Alternative traditional ECG criteria (Cornell, Sokolow-Lyon, Simplified score).
+- [x] `[code]` Demographic subgroup evaluation (age <65 vs >=65, sex).
+- [ ] `[code/data]` Admission-anchored index ECG cohort re-extraction on full dataset.
+- [ ] `[code/data]` Signal quality filter sensitivity on full waveform cohort.
+- [ ] `[code/data]` Secondary CarDSLab 2D image transformer full-cohort scoring.
+- [ ] `[data]` Authoritative empirical sensitivity battery on full cohort.
 
 ### Deliverables
 
 - [x] `src/ecg_alignment/sensitivity.py`
 - [x] `tests/test_sensitivity.py`
-- [x] `reports/sensitivity-analyses.md`
+- [x] `reports/sensitivity-analyses.md` (simulation demonstration)
 
 ### Exit Criteria
 
-- [x] Primary conclusions are clearly separated from sensitivity findings.
-- [x] Any material conclusion change is documented.
+- [x] Sensitivity harness implemented and verified against synthetic cohorts.
+- [ ] Empirical sensitivity battery executed on full dataset.
 
 ## Stage 11 — Research Interpretation
 
 ### Checklist
 
-- [x] State whether alignment is strong, moderate, or weak using prespecified descriptive criteria.
-- [x] Identify whether `B` reveals meaningful within-`A` outcome gradients.
-- [x] Interpret discordant groups.
-- [x] Distinguish statistical incremental information from clinical utility.
-- [x] Explicitly disclose foundation-model MIMIC pretraining contamination.
-- [x] Avoid external-validation language for contaminated models.
-- [x] Document technical failure rates for both models.
-- [x] Document any post hoc choices separately from prespecified choices.
-- [x] Decide whether findings justify a larger external-validation study.
+- [x] `[code]` Classify global alignment using descriptive interpretation conventions.
+- [x] `[code]` Identify within-A residual risk gradients.
+- [x] `[code]` Clinically interpret discordance quadrants and occult risk.
+- [x] `[code]` Formalize separation between statistical incremental value and clinical utility.
+- [x] `[code]` Explicitly audit and disclose MIMIC-IV-ECG pretraining contamination.
+- [x] `[code]` Prohibit external validation claims for contaminated foundation models.
+- [x] `[code]` Registry classifying prespecified vs post-hoc analytical choices.
+- [x] `[code]` Synthesize external validation recommendations and target cohort roadmap.
+- [ ] `[data]` Authoritative scientific interpretation of real CIIS vs D-BETA empirical findings.
 
 ### Deliverables
 
 - [x] `src/ecg_alignment/interpretation.py`
 - [x] `tests/test_interpretation.py`
-- [x] `reports/research-interpretation.md`
+- [x] `reports/research-interpretation.md` (simulation demonstration)
 
 ### Exit Criteria
 
-- [x] Descriptive alignment classification is documented.
-- [x] Residual risk and discordance findings have clinical interpretations.
-- [x] Contamination disclosure and translation boundaries are explicit.
-- [x] Multi-center external validation roadmap is established.
+- [x] Interpretation synthesis and translation boundaries implemented and tested.
+- [ ] Real-data empirical synthesis executed.
 
 ## Stage 12 — Repository Hardening
 
 ### Checklist
 
-- [x] `uv run pytest` passes.
-- [x] `uv run basedpyright` passes.
+- [x] `uv run pytest` passes (100% passing tests).
+- [x] `uv run basedpyright` passes (0 errors, 0 warnings).
 - [x] No hard-coded user-specific absolute paths in reusable code.
-- [x] Local MIMIC paths are configured through CLI/config/environment.
+- [x] Local MIMIC paths configured via CLI / environment variables.
 - [x] No PHI or row-level protected data in Git.
 - [x] No Hugging Face token in Git history.
-- [x] README setup is tested from a clean environment.
-- [x] Research proposal matches implemented design.
-- [x] Roadmap reflects completed and deferred items.
-- [x] Model licenses are documented.
-- [x] Reproducibility commands are documented.
+- [x] Fail-closed manifest verification on missing, malformed, or incomplete manifests.
+- [x] Embedding checkpoint resumption verified.
+- [x] Research proposal matches implemented design and descriptive conventions.
+- [x] Roadmap reflects code-implemented vs empirical-pending items.
+- [x] Ready for authoritative full-cohort real run.
 
 ## Recommended GitHub Issue Sequence
 

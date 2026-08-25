@@ -4,7 +4,7 @@
 
 ## 1. Executive Summary & Hypotheses Verdict
 
-This report delivers the authoritative Stage 11 scientific interpretation for the ECG Model Alignment project. We synthesize primary findings (Stage 9), comprehensive sensitivity checks (Stage 10), and explicit translational boundaries comparing traditional rule-based ECG scoring (**Model `A`**: Cardiac Infarction/Injury Score [CIIS]) against a modern multimodal transformer representation (**Model `B`**: D-BETA 768-d frozen embeddings + $L_2$ probe) in MIMIC-IV.
+This report delivers the authoritative Stage 11 scientific interpretation for the ECG Model Alignment project (analysis demonstration). We synthesize primary findings (Stage 9), comprehensive sensitivity checks (Stage 10), and explicit translational boundaries comparing traditional rule-based ECG scoring (**Model `A`**: Cardiac Infarction/Injury Score [CIIS]) against a modern multimodal transformer representation (**Model `B`**: D-BETA 768-d frozen embeddings + $L_2$ probe) in MIMIC-IV.
 
 ```mermaid
 flowchart TD
@@ -12,7 +12,7 @@ flowchart TD
     F1['1. Moderate Alignment (rho = 0.448)']
     F2['2. Residual Risk Gradients (0.86x - 1.26x within CIIS)']
     F3['3. Discordance Analysis (Occult Risk RR = 1.03x)']
-    F4['4. Incremental Information (Delta AUROC = +0.0065)']
+    F4['4. Incremental Information (Delta AUROC = +0.0115)']
   end
 
   subgraph Boundaries['Stage 11 Translation & Guardrail Boundaries']
@@ -69,7 +69,7 @@ flowchart TD
 
 > RESEARCH BOUNDARY: In this evaluation, multimodal transformer representations did not demonstrate statistically significant incremental prognostic information beyond traditional ECG scores on the held-out test partition. Regardless of statistical effect size, statistical metrics do not establish clinical utility or bedside readiness.
 
-1. **Statistical Demonstration:** Statistical evaluation does not demonstrate statistically significant incremental prognostic information on the test partition (Delta AUROC = 0.0065 (95% CI: -0.0056–0.0257), Delta Brier = -0.1813 (95% CI: -0.1840–-0.1789); Nested Likelihood Ratio Test Delta G^2 = 1.93, p = 1.65e-01).
+1. **Statistical Demonstration:** Statistical evaluation does not demonstrate statistically significant incremental prognostic information on the test partition (Incremental Delta AUROC = 0.0115 (95% CI: -0.0026–0.0297), Incremental Delta Brier = 0.0000 (95% CI: -0.0000–0.0000); Descriptive Nested Likelihood Ratio Test Delta G^2 = 1.93, p = 1.65e-01).
 2. **The Clinical Gap:** However, statistical incremental value does NOT equate to clinical bedside utility. Demonstrating that an AI score improves likelihood-ratio chi-square or AUROC is a necessary prerequisite, but is insufficient to prove clinical efficacy, net benefit, or safety in patient care.
 
 ### Required Evidence for Bedside Deployment
@@ -100,7 +100,7 @@ Before any clinical implementation or decision-support deployment could be consi
 
 ## 5. Technical Failure Rates & Data Completeness
 
-Technical scoring achieved high technical completion across the cohort: Model A (CIIS) completed scoring on 161,279 / 161,279 waveforms (failure rate 0.000%), while Model B (D-BETA) completed scoring on 161,279 / 161,279 (failure rate 0.000%). The joint analytic cohort retained 100.00% of all eligible index ECGs.
+Technical scoring execution demonstration mode: Simulation run generated synthetic prediction rows across 161,279 cohort records. Empirical waveform parsing and scoring completeness will be evaluated during the authoritative full-cohort run on raw WFDB records.
 
 | Pipeline Stage | Evaluated Units | Technical Successes | Technical Failures | Failure Rate | Primary Failure Mechanisms |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -144,7 +144,7 @@ To maintain complete scientific transparency, all methodological components are 
 
 ## 7. Future Directions & External Validation Roadmap
 
-> DECISION: Evidence for external validation is INCONCLUSIVE. The observed incremental effect size is modest or CI crosses null (Delta AUROC = 0.0065 (95% CI: -0.0056–0.0257)). External validation on larger multi-center cohorts may be considered to resolve uncertainty, but evidence of clear in-domain superiority is not yet established.
+> DECISION: Evidence for external validation is INCONCLUSIVE. The observed incremental effect size is modest or CI crosses null (Incremental Delta AUROC = 0.0115 (95% CI: -0.0026–0.0297)). External validation on larger multi-center cohorts may be considered to resolve uncertainty, but evidence of clear in-domain superiority is not yet established.
 
 ### Multi-Center External Validation Study Plan
 1. **Target Independent Cohorts:**

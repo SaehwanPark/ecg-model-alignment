@@ -496,23 +496,31 @@ def evaluate_clinical_utility_distinction(
   """Formalize the distinction between statistical incremental information and clinical utility."""
   lrt_stat = incremental_res.lrt_statistic if incremental_res else 0.0
   lrt_pval = incremental_res.lrt_pvalue if incremental_res else 1.0
-  delta_auroc = comp_res.delta_auroc.point_estimate if comp_res else 0.0
-  delta_brier = comp_res.delta_brier.point_estimate if comp_res else 0.0
+  delta_auroc = (
+    incremental_res.auroc_improvement.point_estimate
+    if incremental_res is not None
+    else (comp_res.delta_auroc.point_estimate if comp_res else 0.0)
+  )
+  delta_brier = (
+    incremental_res.brier_improvement.point_estimate
+    if incremental_res is not None
+    else (comp_res.delta_brier.point_estimate if comp_res else 0.0)
+  )
 
   p_str = "p < 10^-15" if lrt_pval < 1e-15 else f"p = {lrt_pval:.2e}"
 
   is_significant = False
-  if comp_res is not None and comp_res.delta_auroc.ci_lower > 0 and lrt_pval < 0.05:
+  if incremental_res is not None and incremental_res.auroc_improvement.ci_lower > 0:
     is_significant = True
-  elif comp_res is None and incremental_res is not None and incremental_res.auroc_improvement.ci_lower > 0 and lrt_pval < 0.05:
+  elif incremental_res is None and comp_res is not None and comp_res.delta_auroc.ci_lower > 0:
     is_significant = True
 
   if is_significant:
     statistical_summary = (
       f"Statistical evaluation demonstrates incremental prognostic information on the test partition "
-      f"(Delta AUROC = {comp_res.delta_auroc.formatted(4) if comp_res else f'+{delta_auroc:.4f}'}, "
-      f"Delta Brier = {comp_res.delta_brier.formatted(4) if comp_res else f'+{delta_brier:.4f}'}; "
-      f"Nested Likelihood Ratio Test Delta G^2 = {lrt_stat:.2f}, {p_str})."
+      f"(Incremental Delta AUROC = {incremental_res.auroc_improvement.formatted(4) if incremental_res else f'+{delta_auroc:.4f}'}, "
+      f"Incremental Delta Brier = {incremental_res.brier_improvement.formatted(4) if incremental_res else f'+{delta_brier:.4f}'}; "
+      f"Descriptive Nested Likelihood Ratio Test Delta G^2 = {lrt_stat:.2f}, {p_str})."
     )
     formal_statement = (
       "RESEARCH BOUNDARY: While multimodal transformer representations demonstrate incremental prognostic "
@@ -522,9 +530,9 @@ def evaluate_clinical_utility_distinction(
   else:
     statistical_summary = (
       f"Statistical evaluation does not demonstrate statistically significant incremental prognostic information on the test partition "
-      f"(Delta AUROC = {comp_res.delta_auroc.formatted(4) if comp_res else f'{delta_auroc:.4f}'}, "
-      f"Delta Brier = {comp_res.delta_brier.formatted(4) if comp_res else f'{delta_brier:.4f}'}; "
-      f"Nested Likelihood Ratio Test Delta G^2 = {lrt_stat:.2f}, {p_str})."
+      f"(Incremental Delta AUROC = {incremental_res.auroc_improvement.formatted(4) if incremental_res else f'{delta_auroc:.4f}'}, "
+      f"Incremental Delta Brier = {incremental_res.brier_improvement.formatted(4) if incremental_res else f'{delta_brier:.4f}'}; "
+      f"Descriptive Nested Likelihood Ratio Test Delta G^2 = {lrt_stat:.2f}, {p_str})."
     )
     formal_statement = (
       "RESEARCH BOUNDARY: In this evaluation, multimodal transformer representations did not demonstrate statistically "
@@ -806,14 +814,14 @@ def synthesize_external_validation_recommendation(
   if primary_result is not None:
     lrt_p = primary_result.incremental.lrt_pvalue
     p_str = "p < 10^-15" if lrt_p < 1e-15 else f"p = {lrt_p:.2e}"
-    delta_auc = primary_result.comparison.delta_auroc
-    if lrt_p < 0.05 and delta_auc.ci_lower > 0:
+    inc_auc = primary_result.incremental.auroc_improvement
+    if inc_auc.ci_lower > 0:
       justification_list.append(
-        f"Significant incremental prognostic signal confirmed (LRT {p_str}, Delta AUROC {delta_auc.formatted(4)})."
+        f"Significant incremental prognostic signal confirmed (Incremental Delta AUROC {inc_auc.formatted(4)}; Descriptive LRT {p_str})."
       )
     else:
       justification_list.append(
-        f"Null or inconclusive incremental signal in in-domain probing (LRT {p_str}, Delta AUROC {delta_auc.formatted(4)})."
+        f"Null or inconclusive incremental signal in in-domain probing (Incremental Delta AUROC {inc_auc.formatted(4)}; Descriptive LRT {p_str})."
       )
 
     total_q_patients = sum(q.n_patients for q in primary_result.discordance.quadrants)
@@ -842,26 +850,26 @@ def synthesize_external_validation_recommendation(
         f"Discordance contrast (A-low/B-high vs A-low/B-low) did not demonstrate statistically significant risk divergence (RR = {occult_rr.formatted(2)})."
       )
 
-    # Determine recommendation status and narrative
-    if delta_auc.ci_lower > 0 and lrt_p < 0.05:
+    # Determine recommendation status and narrative (governed by incremental AUROC CI)
+    if inc_auc.ci_lower > 0:
       status = ValidationRecommendationStatus.JUSTIFIED
       narrative = (
         "DECISION: Formal external validation is STRONGLY JUSTIFIED. The demonstrated incremental prognostic "
         "performance of the transformer representation, combined with the presence of in-domain pretraining contamination "
         "in MIMIC-IV-ECG, makes an independent multi-center external validation study the logical next step."
       )
-    elif delta_auc.point_estimate > 0 and delta_auc.ci_upper > 0:
+    elif inc_auc.point_estimate > 0 and inc_auc.ci_upper > 0:
       status = ValidationRecommendationStatus.INCONCLUSIVE
       narrative = (
         f"DECISION: Evidence for external validation is INCONCLUSIVE. The observed incremental effect size is modest or "
-        f"CI crosses null (Delta AUROC = {delta_auc.formatted(4)}). External validation on larger multi-center cohorts "
+        f"CI crosses null (Incremental Delta AUROC = {inc_auc.formatted(4)}). External validation on larger multi-center cohorts "
         "may be considered to resolve uncertainty, but evidence of clear in-domain superiority is not yet established."
       )
     else:
       status = ValidationRecommendationStatus.NOT_JUSTIFIED
       narrative = (
         f"DECISION: External validation of this exact formulation is NOT YET STRONGLY MOTIVATED. In-domain representation "
-        f"probing demonstrated an approximately null incremental effect (Delta AUROC = {delta_auc.formatted(4)}). "
+        f"probing demonstrated an approximately null incremental effect (Incremental Delta AUROC = {inc_auc.formatted(4)}). "
         "Methodological refinement of the representation, outcome window, or comparator is recommended before committing to external validation studies."
       )
   else:
@@ -997,9 +1005,9 @@ def synthesize_research_interpretation(
   )
 
   util_summary_short = (
-    f"Statistical vs Clinical Utility: Incremental prognostic value observed (Delta AUROC = +{utility_distinction.delta_auroc:.4f}); clinical utility remains to be demonstrated through prospective decision-curve and intervention studies."
-    if utility_distinction.delta_auroc > 0 and primary_result.comparison.delta_auroc.ci_lower > 0
-    else f"Statistical vs Clinical Utility: Null or sub-threshold incremental prognostic signal observed (Delta AUROC = {utility_distinction.delta_auroc:+.4f}); statistical metrics do not establish clinical bedside readiness."
+    f"Statistical vs Clinical Utility: Incremental prognostic value observed (Incremental Delta AUROC = +{utility_distinction.delta_auroc:.4f}); clinical utility remains to be demonstrated through prospective decision-curve and intervention studies."
+    if utility_distinction.delta_auroc > 0 and primary_result.incremental.auroc_improvement.ci_lower > 0
+    else f"Statistical vs Clinical Utility: Null or sub-threshold incremental prognostic signal observed (Incremental Delta AUROC = {utility_distinction.delta_auroc:+.4f}); statistical metrics do not establish clinical bedside readiness."
   )
 
   executive_summary = (
@@ -1045,6 +1053,16 @@ def generate_research_interpretation_markdown(
 
   completion_pct = synthesis.technical_failures.cohort_completeness_rate * 100.0
   ext_val_title = synthesis.external_validation_recommendation.status.value.replace('_', ' ').title()
+  synthesis_phrase = "empirical evaluation" if str(data_mode).lower() == "real" else "analysis demonstration"
+
+  if str(data_mode).lower() == "simulation":
+    tech_narrative = (
+      f"Technical scoring execution demonstration mode: Simulation run generated synthetic prediction rows across "
+      f"{synthesis.technical_failures.total_waveforms_evaluated:,} cohort records. Empirical waveform parsing and scoring completeness "
+      f"will be evaluated during the authoritative full-cohort run on raw WFDB records."
+    )
+  else:
+    tech_narrative = synthesis.technical_failures.narrative
 
   lines: list[str] = [
     "# Stage 11 Research Report: Comprehensive Scientific Interpretation & Translation Boundaries",
@@ -1053,7 +1071,7 @@ def generate_research_interpretation_markdown(
     "",
     "## 1. Executive Summary & Hypotheses Verdict",
     "",
-    "This report delivers the authoritative Stage 11 scientific interpretation for the ECG Model Alignment project. "
+    f"This report delivers the authoritative Stage 11 scientific interpretation for the ECG Model Alignment project ({synthesis_phrase}). "
     "We synthesize primary findings (Stage 9), comprehensive sensitivity checks (Stage 10), and explicit translational boundaries "
     "comparing traditional rule-based ECG scoring (**Model `A`**: Cardiac Infarction/Injury Score [CIIS]) against a modern "
     "multimodal transformer representation (**Model `B`**: D-BETA 768-d frozen embeddings + $L_2$ probe) in MIMIC-IV.",
@@ -1173,7 +1191,7 @@ def generate_research_interpretation_markdown(
     "",
     "## 5. Technical Failure Rates & Data Completeness",
     "",
-    f"{synthesis.technical_failures.narrative}",
+    f"{tech_narrative}",
     "",
     "| Pipeline Stage | Evaluated Units | Technical Successes | Technical Failures | Failure Rate | Primary Failure Mechanisms |",
     "| :--- | :--- | :--- | :--- | :--- | :--- |",

@@ -259,8 +259,8 @@ def build_parser() -> argparse.ArgumentParser:
   common_flags.add_argument(
     "--n-bootstraps",
     type=int,
-    default=50,
-    help="Number of patient-level bootstrap iterations",
+    default=None,
+    help="Number of patient-level bootstrap iterations (default: 1000 in real mode, 50 in simulation mode)",
   )
 
   parser = argparse.ArgumentParser(
@@ -399,7 +399,11 @@ def create_cli_context(args: argparse.Namespace) -> CliContext:
   checkpoint_path = Path(ckpt_path_arg).expanduser().resolve() if ckpt_path_arg is not None else None
   checkpoint_interval = int(getattr(args, "checkpoint_interval", 5000) or 5000)
   max_records = int(getattr(args, "max_records", 0)) if getattr(args, "max_records", None) is not None else None
-  n_bootstraps = int(getattr(args, "n_bootstraps", 50))
+  raw_n_bootstraps = getattr(args, "n_bootstraps", None)
+  if raw_n_bootstraps is not None:
+    n_bootstraps = int(raw_n_bootstraps)
+  else:
+    n_bootstraps = 50 if simulate else 1000
   device = str(getattr(args, "device", "cpu") or "cpu")
   batch_size = int(getattr(args, "batch_size", 32) or 32)
 
@@ -925,7 +929,7 @@ def run_sensitivity(ctx: CliContext, report_out: str | None = None) -> int:
     earliest_test_df=test_df,
     dev_df=dev_df,
     evaluation_strata_df=strata_df,
-    n_bootstraps=min(ctx.n_bootstraps, 20),
+    n_bootstraps=ctx.n_bootstraps,
     seed=ctx.seed,
   )
 
@@ -983,7 +987,7 @@ def run_interpret(
       sensitivity_result = run_sensitivity_analyses(
         earliest_test_df=test_df,
         dev_df=dev_df,
-        n_bootstraps=min(ctx.n_bootstraps, 20),
+        n_bootstraps=ctx.n_bootstraps,
         seed=ctx.seed,
       )
     except Exception:
@@ -1086,7 +1090,7 @@ def run_pipeline(ctx: CliContext, skip_figures: bool = False) -> int:
     earliest_test_df=test_df,
     dev_df=dev_df,
     evaluation_strata_df=strata_df,
-    n_bootstraps=min(ctx.n_bootstraps, 20),
+    n_bootstraps=ctx.n_bootstraps,
     seed=ctx.seed,
   )
   sens_path = ctx.output_dir / "sensitivity-analyses.md"

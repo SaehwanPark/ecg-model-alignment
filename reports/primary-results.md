@@ -11,12 +11,12 @@
 
 ## 1. Executive Summary & Hypotheses Evaluation
 
-This report provides the empirical evaluation of the core scientific questions in the untouched final test partition:
+This report provides the analysis demonstration of the core scientific questions in the untouched final test partition:
 
-1. **H1 (Partial Alignment):** Confirmed. Spearman rank correlation $\rho = 0.448$ ($p = 0.00e+00$) indicates moderate shared electrophysiologic signal between traditional Model `A` (CIIS) and transformer Model `B` (D-BETA probe).
+1. **H1 (Positive Alignment):** Confirmed (Moderate Partial Alignment (0.30 <= |Rho| < 0.70)). Spearman rank correlation $\rho = 0.448$ ($p = 0.00e+00$) indicates statistically significant positive association with moderate partial alignment (0.30 <= |rho| < 0.70) between traditional Model `A` (CIIS) and transformer Model `B` (D-BETA probe).
 2. **H2 (Residual Risk Gradients):** Not Confirmed. Within fixed traditional risk categories, Model `B` did not identify consistent residual risk gradients meeting the prespecified 1.50x threshold across tertiles (mean gradient ratio 1.03x).
 3. **H3 (Clinically Informative Discordance):** Not Confirmed (Null/Inconclusive). Mortality in the discordant `A-low / B-high` group was not significantly different from `A-low / B-low` (Risk Difference: 0.0010 (95% CI: -0.0035–0.0058), Relative Risk: 1.03 (95% CI: 0.89–1.21)x).
-4. **H4 (Incremental Information):** Not Confirmed (Null/Inconclusive). Model `B` did not provide statistically significant incremental prognostic information beyond $f(A)$ on the held-out test partition (Held-out $\Delta\text{AUROC} = 0.0115 (95% CI: -0.0026–0.0297)$, Descriptive LRT statistic $\Delta G^2 = 1.93$, $p = 1.65e-01$).
+4. **H4 (Incremental Information):** Not Confirmed (Null/Inconclusive). Model `B` did not provide statistically significant incremental prognostic information beyond $f(A)$ on the held-out test partition (Held-out $\Delta\text{AUROC} = 0.0115 (95% CI: -0.0026–0.0297)$, Held-out Log-Loss Reduction = +0.0000; Descriptive Development LRT $\Delta G^2 = 1.93$, $p = 1.65e-01$).
 
 ---
 
