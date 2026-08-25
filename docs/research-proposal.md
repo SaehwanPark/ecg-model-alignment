@@ -58,7 +58,7 @@ $$
 $$
 
 We evaluate directional statistical significance ($\rho > 0$, $p < 0.05$) and classify alignment magnitude using prespecified descriptive conventions:
-- **Weak alignment:** $|\rho| < 0.30$ (representations largely orthogonal);
+- **Weak alignment:** $|\rho| < 0.30$ (representations weakly rank-aligned);
 - **Moderate alignment:** $0.30 \le |\rho| < 0.70$ (partial alignment with complementary capacity);
 - **Strong alignment:** $|\rho| \ge 0.70$ (high redundancy between representations).
 
@@ -72,7 +72,7 @@ P(Y=1 \mid C_A=k, B_{\text{high}})
 P(Y=1 \mid C_A=k, B_{\text{low}}).
 $$
 
-We evaluate directional separation across within-stratum tertiles ($T_3$ vs $T_1$) with patient-level bootstrap uncertainty, and use a gradient ratio $T_3 / T_1 \ge 1.50$ (or positive risk difference) as a descriptive benchmark for clinically meaningful residual risk.
+We evaluate directional separation across within-stratum tertiles ($T_3$ vs $T_1$) with patient-level bootstrap uncertainty; a gradient ratio $T_3 / T_1 \ge 1.50$ is used as a descriptive effect-size benchmark for clinically meaningful residual risk, while bootstrap RD/RR intervals communicate uncertainty.
 
 ### H3: Clinically informative discordance
 

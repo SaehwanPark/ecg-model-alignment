@@ -268,7 +268,7 @@ def classify_alignment_strength(
     narrative = (
       f"Spearman rho = {rho:.3f} indicates weak alignment (|rho| < {weak_max:.2f}), "
       "demonstrating that the modern transformer representation captures electrophysiologic "
-      "information that is largely orthogonal to the traditional score."
+      "information that is weakly rank-aligned with the traditional score."
     )
   elif abs_rho < strong_min:
     strength = AlignmentStrength.MODERATE
@@ -1038,11 +1038,13 @@ def generate_research_interpretation_markdown(
   data_mode: Literal["real", "simulation"] | str = "real",
 ) -> str:
   """Generate the authoritative Stage 11 Research Interpretation Markdown Report."""
-  provenance_banner = (
-    "> **Data Source:** REAL MIMIC-IV-ECG predictions"
-    if str(data_mode).lower() == "real"
-    else "> **Data Source:** SIMULATION — NOT EMPIRICAL RESULTS"
-  )
+  mode_str = str(data_mode).lower()
+  if mode_str == "real":
+    provenance_banner = "> **Data Source:** REAL MIMIC-IV-ECG predictions"
+  elif mode_str in ("unverified", "unverified_artifact"):
+    provenance_banner = "> **Data Source:** UNVERIFIED ARTIFACT (bypassed provenance validation)"
+  else:
+    provenance_banner = "> **Data Source:** SIMULATION — NOT EMPIRICAL RESULTS"
 
   ratios = [c.gradient_ratio for c in synthesis.within_a_gradients.category_assessments if c.gradient_ratio > 0]
   if ratios:

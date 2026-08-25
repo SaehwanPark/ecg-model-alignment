@@ -87,6 +87,50 @@ def load_dbeta_model(
   target_source = local_checkpoint_path if local_checkpoint_path is not None else model_name
   logger.info("Loading D-BETA model from %s (revision %s) on %s", target_source, revision, device)
 
+  # Ensure backward-compatibility shims exist for D-BETA dynamic module imports in transformers >= 5.x
+  import transformers.modeling_utils
+  import transformers.pytorch_utils
+
+  if not hasattr(transformers.pytorch_utils, "find_pruneable_heads_and_indices"):
+    def _find_pruneable_heads_and_indices(
+      heads: set[int], n_heads: int, head_size: int, already_pruned_heads: set[int]
+    ) -> tuple[set[int], torch.LongTensor]:
+      mask = torch.ones(n_heads, head_size)
+      heads = set(heads) - set(already_pruned_heads)
+      for head in heads:
+        head = head - sum(1 if h < head else 0 for h in already_pruned_heads)
+        mask[head] = 0
+      mask = mask.view(-1).contiguous().eq(1)
+      index = cast(torch.LongTensor, torch.arange(len(mask))[mask].long())
+      return heads, index
+
+    setattr(transformers.pytorch_utils, "find_pruneable_heads_and_indices", _find_pruneable_heads_and_indices)
+
+  if not hasattr(transformers.modeling_utils, "find_pruneable_heads_and_indices"):
+    setattr(
+      transformers.modeling_utils,
+      "find_pruneable_heads_and_indices",
+      getattr(transformers.pytorch_utils, "find_pruneable_heads_and_indices"),
+    )
+
+  if not hasattr(transformers.modeling_utils, "apply_chunking_to_forward") and hasattr(
+    transformers.pytorch_utils, "apply_chunking_to_forward"
+  ):
+    setattr(
+      transformers.modeling_utils,
+      "apply_chunking_to_forward",
+      getattr(transformers.pytorch_utils, "apply_chunking_to_forward"),
+    )
+
+  if not hasattr(transformers.modeling_utils, "prune_linear_layer") and hasattr(
+    transformers.pytorch_utils, "prune_linear_layer"
+  ):
+    setattr(
+      transformers.modeling_utils,
+      "prune_linear_layer",
+      getattr(transformers.pytorch_utils, "prune_linear_layer"),
+    )
+
   try:
     if local_checkpoint_path is not None:
       loaded_model = cast(

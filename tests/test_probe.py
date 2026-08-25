@@ -721,12 +721,12 @@ def test_load_real_mode_fails_when_manifest_missing(tmp_path: Path) -> None:
   with pytest.raises(ValueError, match="has no companion manifest"):
     load_and_verify_unified_prediction_table(parquet_path, requested_mode="real")
 
-  # 2. Real mode with allow_unverified_artifact=True succeeds
+  # 2. Real mode with allow_unverified_artifact=True succeeds and marks data_mode as unverified
   verified_override = load_and_verify_prediction_artifact(
     parquet_path, requested_mode="real", allow_unverified_artifact=True
   )
   assert len(verified_override.dataframe) == 2
-  assert verified_override.data_mode == "real"
+  assert verified_override.data_mode == "unverified"
   assert verified_override.manifest_path is None
 
   # 3. Simulation mode without manifest succeeds (legacy compatibility for simulated runs)
@@ -780,6 +780,7 @@ def test_load_and_verify_malformed_and_incomplete_manifests(tmp_path: Path) -> N
     parquet_path, requested_mode="real", allow_unverified_artifact=True
   )
   assert len(verified.dataframe) == 2
+  assert verified.data_mode == "unverified"
 
 
 def test_extract_transformer_embeddings_checkpoint_resume(
@@ -828,5 +829,67 @@ def test_extract_transformer_embeddings_checkpoint_resume(
   assert read_count == 0
   assert np.array_equal(embs1, embs2)
   assert meta_df1["subject_id"].to_list() == meta_df2["subject_id"].to_list()
+
+
+def test_checkpoint_fingerprint_mismatch_detection(
+  tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+  """Test that checkpoint resume rejects mismatched model version, leads, fs, or signal length."""
+  cohort_df = pl.DataFrame({
+    "subject_id": [1, 2],
+    "study_id": [101, 102],
+    "path": ["files/p1", "files/p2"],
+  })
+
+  def mock_read(p: Path | str) -> tuple[npt.NDArray[np.float64], list[str], int]:
+    return np.zeros((5000, 12), dtype=np.float64), ["I"] * 12, 500
+
+  monkeypatch.setattr("ecg_alignment.probe.read_ecg_waveform", mock_read)
+  adapter = MockEcgAdapter(embedding_dim=4)
+  ckpt_file = tmp_path / "checkpoints" / "mismatch_test.npz"
+
+  # Extract and save initial checkpoint
+  extract_transformer_embeddings(
+    cohort_df,
+    adapter=adapter,
+    batch_size=2,
+    checkpoint_path=ckpt_file,
+  )
+  assert ckpt_file.exists()
+
+  # Test mismatch on model version
+  class MockVersionAdapter(MockEcgAdapter):
+    @property
+    def config(self) -> TransformerAdapterConfig:
+      from dataclasses import replace
+      return replace(super().config, model_version="changed_v2")
+
+  read_count = 0
+  def mock_read_counting(p: Path | str) -> tuple[npt.NDArray[np.float64], list[str], int]:
+    nonlocal read_count
+    read_count += 1
+    return np.zeros((5000, 12), dtype=np.float64), ["I"] * 12, 500
+
+  monkeypatch.setattr("ecg_alignment.probe.read_ecg_waveform", mock_read_counting)
+  v_adapter = MockVersionAdapter(embedding_dim=4)
+  extract_transformer_embeddings(
+    cohort_df,
+    adapter=v_adapter,
+    batch_size=2,
+    checkpoint_path=ckpt_file,
+  )
+  # Because model version changed, extraction restarted from scratch
+  assert read_count == 2
+
+
+def test_unverified_artifact_report_banners() -> None:
+  """Test that markdown report generators display UNVERIFIED ARTIFACT banner when requested."""
+  md_unverified = generate_continuous_predictions_markdown(
+    {"total_patients": 10}, data_mode="unverified"
+  )
+  assert "UNVERIFIED ARTIFACT" in md_unverified
+  assert "bypassed provenance validation" in md_unverified
+
+
 
 

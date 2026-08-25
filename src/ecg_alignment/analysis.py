@@ -1493,11 +1493,13 @@ def generate_primary_results_markdown(
   Returns:
     Formatted Markdown string.
   """
-  provenance_banner = (
-    "> **Data Source:** REAL MIMIC-IV-ECG predictions"
-    if str(data_mode).lower() == "real"
-    else "> **Data Source:** SIMULATION — NOT EMPIRICAL RESULTS"
-  )
+  mode_str = str(data_mode).lower()
+  if mode_str == "real":
+    provenance_banner = "> **Data Source:** REAL MIMIC-IV-ECG predictions"
+  elif mode_str in ("unverified", "unverified_artifact"):
+    provenance_banner = "> **Data Source:** UNVERIFIED ARTIFACT (bypassed provenance validation)"
+  else:
+    provenance_banner = "> **Data Source:** SIMULATION — NOT EMPIRICAL RESULTS"
   # H1 Evaluation: Alignment (Spearman rho > 0 with descriptive alignment bands)
   rho = result.alignment.spearman_rho
   p_val = result.alignment.spearman_pvalue

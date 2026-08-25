@@ -1027,11 +1027,13 @@ def generate_sensitivity_report_markdown(
   qf = result.quality_filtering
   st = result.secondary_transformer
 
-  provenance_banner = (
-    "> **Data Source:** REAL MIMIC-IV-ECG predictions"
-    if str(data_mode).lower() == "real"
-    else "> **Data Source:** SIMULATION — NOT EMPIRICAL RESULTS"
-  )
+  mode_str = str(data_mode).lower()
+  if mode_str == "real":
+    provenance_banner = "> **Data Source:** REAL MIMIC-IV-ECG predictions"
+  elif mode_str in ("unverified", "unverified_artifact"):
+    provenance_banner = "> **Data Source:** UNVERIFIED ARTIFACT (bypassed provenance validation)"
+  else:
+    provenance_banner = "> **Data Source:** SIMULATION — NOT EMPIRICAL RESULTS"
 
   lines: list[str] = [
     "# Stage 10 Validation Report: Sensitivity and Robustness Analyses",
