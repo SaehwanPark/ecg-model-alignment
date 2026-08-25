@@ -684,7 +684,7 @@ def extract_transformer_embeddings(
 ) -> tuple[pl.DataFrame, npt.NDArray[np.float64]]:
   """Extract frozen ECG representations for cohort using a Model-B adapter.
 
-  Supports batch inference and periodic intermediate checkpointing.
+  Supports batch inference and periodic intermediate checkpointing with resume capability.
 
   Args:
     cohort_df: Cohort DataFrame with subject_id, study_id, and path.
@@ -692,12 +692,14 @@ def extract_transformer_embeddings(
     ecg_data_dir: Optional root directory of WFDB files.
     relative_path_col: Column name containing relative WFDB path.
     batch_size: Batch size for batched model forward passes.
-    checkpoint_path: Optional path to save intermediate embeddings (.npz or .npy).
+    checkpoint_path: Optional path to save/resume intermediate embeddings (.npz).
     checkpoint_interval: Number of processed records between checkpoints.
 
   Returns:
     Tuple of (metadata_df, embeddings_2d).
   """
+  import hashlib
+
   data_dir = Path(ecg_data_dir) if ecg_data_dir is not None else None
   n_records = len(cohort_df)
   emb_dim = adapter.config.embedding_dim
@@ -706,13 +708,52 @@ def extract_transformer_embeddings(
   valid_flags: list[bool] = [False] * n_records
   error_messages: list[str | None] = [None] * n_records
 
+  # Compute deterministic cohort identifier hash to guard against mismatched resume
+  id_bytes = b"".join(
+    f"{r['subject_id']}:{r['study_id']}\n".encode("utf-8")
+    for r in cohort_df.select(["subject_id", "study_id"]).iter_rows(named=True)
+  )
+  cohort_hash = hashlib.sha256(id_bytes).hexdigest()
+
+  start_idx = 0
+  if checkpoint_path is not None:
+    ckpt_p = Path(checkpoint_path).expanduser().resolve()
+    if ckpt_p.exists() and ckpt_p.is_file():
+      try:
+        with np.load(ckpt_p, allow_pickle=True) as ckpt_data:
+          saved_count = int(ckpt_data["processed_count"])
+          saved_cohort_hash = str(ckpt_data.get("cohort_hash", ""))
+          saved_model_name = str(ckpt_data.get("model_name", ""))
+          saved_dim = int(ckpt_data.get("embedding_dim", emb_dim))
+
+          if saved_cohort_hash and saved_cohort_hash != cohort_hash:
+            logger.warning("Checkpoint cohort hash mismatch at %s; restarting extraction.", ckpt_p)
+          elif saved_model_name and saved_model_name != str(adapter.config.model_name):
+            logger.warning("Checkpoint model name mismatch at %s; restarting extraction.", ckpt_p)
+          elif saved_dim != emb_dim:
+            logger.warning("Checkpoint embedding dimension mismatch at %s; restarting extraction.", ckpt_p)
+          elif 0 < saved_count <= n_records:
+            embeddings[:saved_count] = ckpt_data["embeddings"][:saved_count]
+            saved_mask = ckpt_data["valid_mask"][:saved_count]
+            for i in range(saved_count):
+              valid_flags[i] = bool(saved_mask[i])
+            if "error_messages" in ckpt_data:
+              saved_errs = ckpt_data["error_messages"][:saved_count]
+              for i in range(saved_count):
+                err_v = saved_errs[i]
+                error_messages[i] = str(err_v) if err_v is not None and str(err_v) != "" and not (isinstance(err_v, float) and np.isnan(err_v)) else None
+            start_idx = saved_count
+            logger.info("Resumed transformer embedding extraction from %s at record %d/%d", ckpt_p, start_idx, n_records)
+      except Exception as exc:
+        logger.warning("Could not restore checkpoint from %s: %s; starting extraction from scratch.", ckpt_p, exc)
+
   # If adapter supports embed_batch and batch_size > 1, use batching
   if batch_size > 1 and hasattr(adapter, "embed_batch"):
-    rows = cohort_df.iter_rows(named=True)
     batch_records: list[tuple[npt.NDArray[np.float64], Sequence[str], int]] = []
     batch_indices: list[int] = []
 
-    for idx, row in enumerate(rows):
+    for idx in range(start_idx, n_records):
+      row = cohort_df.row(idx, named=True)
       rel_path = str(row.get(relative_path_col, ""))
       rec_path = data_dir / rel_path if data_dir is not None else Path(rel_path)
 
@@ -747,19 +788,25 @@ def extract_transformer_embeddings(
         batch_indices.clear()
 
       # Periodic intermediate checkpointing
-      if checkpoint_path is not None and (idx + 1) % checkpoint_interval == 0:
+      if checkpoint_path is not None and ((idx + 1) % checkpoint_interval == 0 or idx == n_records - 1):
         ckpt_p = Path(checkpoint_path)
         ckpt_p.parent.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(
           ckpt_p,
           embeddings=embeddings[: idx + 1],
           valid_mask=np.array(valid_flags[: idx + 1], dtype=bool),
+          error_messages=np.array([m if m is not None else "" for m in error_messages[: idx + 1]], dtype=object),
           processed_count=idx + 1,
+          total_records=n_records,
+          model_name=str(adapter.config.model_name),
+          embedding_dim=emb_dim,
+          cohort_hash=cohort_hash,
         )
-        logger.info("Saved intermediate embedding checkpoint to %s (%d records)", ckpt_p, idx + 1)
+        logger.info("Saved intermediate embedding checkpoint to %s (%d/%d records)", ckpt_p, idx + 1, n_records)
 
   else:
-    for idx, row in enumerate(cohort_df.iter_rows(named=True)):
+    for idx in range(start_idx, n_records):
+      row = cohort_df.row(idx, named=True)
       rel_path = str(row.get(relative_path_col, ""))
       rec_path = data_dir / rel_path if data_dir is not None else Path(rel_path)
 
@@ -778,14 +825,19 @@ def extract_transformer_embeddings(
         valid_flags[idx] = False
         error_messages[idx] = str(exc)
 
-      if checkpoint_path is not None and (idx + 1) % checkpoint_interval == 0:
+      if checkpoint_path is not None and ((idx + 1) % checkpoint_interval == 0 or idx == n_records - 1):
         ckpt_p = Path(checkpoint_path)
         ckpt_p.parent.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(
           ckpt_p,
           embeddings=embeddings[: idx + 1],
           valid_mask=np.array(valid_flags[: idx + 1], dtype=bool),
+          error_messages=np.array([m if m is not None else "" for m in error_messages[: idx + 1]], dtype=object),
           processed_count=idx + 1,
+          total_records=n_records,
+          model_name=str(adapter.config.model_name),
+          embedding_dim=emb_dim,
+          cohort_hash=cohort_hash,
         )
 
   meta_df = cohort_df.select(["subject_id", "study_id"]).with_columns(
@@ -1224,36 +1276,57 @@ def load_and_verify_prediction_artifact(
     try:
       with open(manifest_path, "r", encoding="utf-8") as f:
         loaded_json = json.load(f)
-      if isinstance(loaded_json, dict):
-        manifest_data = loaded_json
+    except Exception as exc:
+      if requested_mode == "real" and not allow_unverified_artifact:
+        raise ValueError(
+          f"Companion manifest at '{manifest_path}' is malformed or unreadable: {exc}. "
+          "Real mode requires a valid JSON companion manifest. Pass --allow-unverified-artifact to bypass."
+        ) from exc
+      loaded_json = None
 
-        recorded_mode = manifest_data.get("data_mode")
-        if recorded_mode in ("real", "simulation"):
-          actual_mode = recorded_mode
+    if not isinstance(loaded_json, dict):
+      if requested_mode == "real" and not allow_unverified_artifact:
+        raise ValueError(
+          f"Companion manifest at '{manifest_path}' is invalid (expected JSON object). "
+          "Real mode requires a valid JSON companion manifest. Pass --allow-unverified-artifact to bypass."
+        )
+      manifest_data = None
+    else:
+      manifest_data = loaded_json
 
-        if (
-          requested_mode == "real"
-          and recorded_mode == "simulation"
-          and not allow_simulated_artifact
-        ):
+      recorded_mode = manifest_data.get("data_mode")
+      if recorded_mode in ("real", "simulation"):
+        actual_mode = recorded_mode
+      elif requested_mode == "real" and not allow_unverified_artifact:
+        raise ValueError(
+          f"Companion manifest at '{manifest_path}' is missing a valid 'data_mode' field. "
+          "Real mode requires data_mode to be specified. Pass --allow-unverified-artifact to bypass."
+        )
+
+      if (
+        requested_mode == "real"
+        and recorded_mode == "simulation"
+        and not allow_simulated_artifact
+      ):
+        raise ValueError(
+          f"Prediction artifact at '{p}' was generated in 'simulation' mode (recorded in {manifest_path.name}), "
+          "but execution was requested in 'real' mode. Real execution requires genuine empirical predictions. "
+          "Pass --simulate or --allow-simulated-artifact if simulated evaluation is intended."
+        )
+
+      if verify_checksum:
+        recorded_sha = manifest_data.get("predictions_artifact_sha256")
+        if recorded_sha is None:
+          if requested_mode == "real" and not allow_unverified_artifact:
+            raise ValueError(
+              f"Companion manifest at '{manifest_path}' is missing 'predictions_artifact_sha256' field. "
+              "Pass --allow-unverified-artifact to bypass."
+            )
+        elif actual_sha != recorded_sha:
           raise ValueError(
-            f"Prediction artifact at '{p}' was generated in 'simulation' mode (recorded in {manifest_path.name}), "
-            "but execution was requested in 'real' mode. Real execution requires genuine empirical predictions. "
-            "Pass --simulate or --allow-simulated-artifact if simulated evaluation is intended."
+            f"Prediction artifact integrity error: SHA-256 mismatch for '{p}'. "
+            f"Manifest records {recorded_sha}, but file has {actual_sha}."
           )
-
-        if verify_checksum:
-          recorded_sha = manifest_data.get("predictions_artifact_sha256")
-          if recorded_sha is not None:
-            if actual_sha != recorded_sha:
-              raise ValueError(
-                f"Prediction artifact integrity error: SHA-256 mismatch for '{p}'. "
-                f"Manifest records {recorded_sha}, but file has {actual_sha}."
-              )
-    except (ValueError, FileNotFoundError):
-      raise
-    except Exception:
-      pass
 
   df = load_unified_prediction_table(p)
   return VerifiedPredictionArtifact(

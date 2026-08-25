@@ -304,7 +304,7 @@ def test_run_primary_analysis_end_to_end(tmp_path: Path) -> None:
   # Markdown Report Generation
   md = generate_primary_results_markdown(result)
   assert "# Stage 9 Primary Analysis" in md
-  assert "H1 (Partial Alignment)" in md
+  assert "H1 (Positive Alignment)" in md
   assert "H2 (Residual Risk Gradients)" in md
   assert "H3 (Clinically Informative Discordance)" in md
   assert "H4 (Incremental Information)" in md
@@ -354,7 +354,9 @@ def test_primary_results_strata_and_quadrant_invariants() -> None:
   # 4. Markdown report provenance banner and log-loss CI verification
   md_real = generate_primary_results_markdown(result, data_mode="real")
   assert "> **Data Source:** REAL MIMIC-IV-ECG predictions" in md_real
+  assert "empirical evaluation" in md_real
   assert "Held-out Log-Loss Reduction" in md_real
 
   md_sim = generate_primary_results_markdown(result, data_mode="simulation")
   assert "> **Data Source:** SIMULATION — NOT EMPIRICAL RESULTS" in md_sim
+  assert "analysis demonstration" in md_sim
