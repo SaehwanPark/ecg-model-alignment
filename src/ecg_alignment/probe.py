@@ -19,7 +19,11 @@ import polars as pl
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import brier_score_loss, roc_auc_score
 
-from ecg_alignment.data import read_ecg_waveform
+from ecg_alignment.data import (
+  DEFAULT_SAMPLING_RATE_HZ,
+  DEFAULT_SIGNAL_LENGTH_SAMPLES,
+  read_ecg_waveform,
+)
 from ecg_alignment.scoring.base import BaseEcgModelAdapter
 from ecg_alignment.scoring.traditional import CIISCategory, score_ecg_waveform
 from ecg_alignment.split import verify_split_disjointness
@@ -715,6 +719,25 @@ def extract_transformer_embeddings(
   )
   cohort_hash = hashlib.sha256(id_bytes).hexdigest()
 
+  model_name = str(adapter.config.model_name)
+  model_version = str(getattr(adapter.config, "model_version", "") or "")
+  target_leads = (
+    ",".join(adapter.config.preprocess_config.target_leads)
+    if hasattr(adapter.config, "preprocess_config")
+    else ""
+  )
+  target_fs = (
+    int(adapter.config.preprocess_config.target_fs)
+    if hasattr(adapter.config, "preprocess_config")
+    else DEFAULT_SAMPLING_RATE_HZ
+  )
+  target_sig_len = (
+    int(adapter.config.preprocess_config.target_sig_len)
+    if hasattr(adapter.config, "preprocess_config")
+    else DEFAULT_SIGNAL_LENGTH_SAMPLES
+  )
+  normalize_embeddings = bool(getattr(adapter.config, "normalize_embeddings", False))
+
   start_idx = 0
   if checkpoint_path is not None:
     ckpt_p = Path(checkpoint_path).expanduser().resolve()
@@ -724,14 +747,49 @@ def extract_transformer_embeddings(
           saved_count = int(ckpt_data["processed_count"])
           saved_cohort_hash = str(ckpt_data.get("cohort_hash", ""))
           saved_model_name = str(ckpt_data.get("model_name", ""))
+          saved_model_version = (
+            str(ckpt_data.get("model_version", ""))
+            if "model_version" in ckpt_data
+            else None
+          )
           saved_dim = int(ckpt_data.get("embedding_dim", emb_dim))
+          saved_leads = (
+            str(ckpt_data.get("target_leads", ""))
+            if "target_leads" in ckpt_data
+            else None
+          )
+          saved_fs = (
+            int(ckpt_data.get("target_fs", 0))
+            if "target_fs" in ckpt_data
+            else None
+          )
+          saved_sig_len = (
+            int(ckpt_data.get("target_sig_len", 0))
+            if "target_sig_len" in ckpt_data
+            else None
+          )
+          saved_norm = (
+            bool(ckpt_data.get("normalize_embeddings", False))
+            if "normalize_embeddings" in ckpt_data
+            else None
+          )
 
           if saved_cohort_hash and saved_cohort_hash != cohort_hash:
             logger.warning("Checkpoint cohort hash mismatch at %s; restarting extraction.", ckpt_p)
-          elif saved_model_name and saved_model_name != str(adapter.config.model_name):
+          elif saved_model_name and saved_model_name != model_name:
             logger.warning("Checkpoint model name mismatch at %s; restarting extraction.", ckpt_p)
+          elif saved_model_version is not None and model_version and saved_model_version != model_version:
+            logger.warning("Checkpoint model version mismatch at %s; restarting extraction.", ckpt_p)
           elif saved_dim != emb_dim:
             logger.warning("Checkpoint embedding dimension mismatch at %s; restarting extraction.", ckpt_p)
+          elif saved_leads is not None and target_leads and saved_leads != target_leads:
+            logger.warning("Checkpoint lead order mismatch at %s; restarting extraction.", ckpt_p)
+          elif saved_fs is not None and saved_fs != 0 and saved_fs != target_fs:
+            logger.warning("Checkpoint sampling rate mismatch at %s; restarting extraction.", ckpt_p)
+          elif saved_sig_len is not None and saved_sig_len != 0 and saved_sig_len != target_sig_len:
+            logger.warning("Checkpoint signal length mismatch at %s; restarting extraction.", ckpt_p)
+          elif saved_norm is not None and saved_norm != normalize_embeddings:
+            logger.warning("Checkpoint normalization setting mismatch at %s; restarting extraction.", ckpt_p)
           elif 0 < saved_count <= n_records:
             embeddings[:saved_count] = ckpt_data["embeddings"][:saved_count]
             saved_mask = ckpt_data["valid_mask"][:saved_count]
@@ -798,9 +856,14 @@ def extract_transformer_embeddings(
           error_messages=np.array([m if m is not None else "" for m in error_messages[: idx + 1]], dtype=object),
           processed_count=idx + 1,
           total_records=n_records,
-          model_name=str(adapter.config.model_name),
+          model_name=model_name,
+          model_version=model_version,
           embedding_dim=emb_dim,
           cohort_hash=cohort_hash,
+          target_leads=target_leads,
+          target_fs=target_fs,
+          target_sig_len=target_sig_len,
+          normalize_embeddings=normalize_embeddings,
         )
         logger.info("Saved intermediate embedding checkpoint to %s (%d/%d records)", ckpt_p, idx + 1, n_records)
 
@@ -835,9 +898,14 @@ def extract_transformer_embeddings(
           error_messages=np.array([m if m is not None else "" for m in error_messages[: idx + 1]], dtype=object),
           processed_count=idx + 1,
           total_records=n_records,
-          model_name=str(adapter.config.model_name),
+          model_name=model_name,
+          model_version=model_version,
           embedding_dim=emb_dim,
           cohort_hash=cohort_hash,
+          target_leads=target_leads,
+          target_fs=target_fs,
+          target_sig_len=target_sig_len,
+          normalize_embeddings=normalize_embeddings,
         )
 
   meta_df = cohort_df.select(["subject_id", "study_id"]).with_columns(
@@ -998,11 +1066,13 @@ def generate_continuous_predictions_markdown(
     Markdown string.
   """
   total_pts = summary_stats.get("total_patients", 0)
-  provenance_banner = (
-    "> **Data Source:** REAL MIMIC-IV-ECG predictions"
-    if str(data_mode).lower() == "real"
-    else "> **Data Source:** SIMULATION — NOT EMPIRICAL RESULTS"
-  )
+  mode_str = str(data_mode).lower()
+  if mode_str == "real":
+    provenance_banner = "> **Data Source:** REAL MIMIC-IV-ECG predictions"
+  elif mode_str in ("unverified", "unverified_artifact"):
+    provenance_banner = "> **Data Source:** UNVERIFIED ARTIFACT (bypassed provenance validation)"
+  else:
+    provenance_banner = "> **Data Source:** SIMULATION — NOT EMPIRICAL RESULTS"
 
   lines = [
     f"# {title}",
@@ -1266,30 +1336,36 @@ def load_and_verify_prediction_artifact(
   actual_sha = compute_file_sha256(p)
 
   if manifest_path is None:
-    if requested_mode == "real" and not allow_unverified_artifact:
-      raise ValueError(
-        f"Prediction artifact at '{p}' has no companion manifest to verify data provenance in 'real' mode. "
-        "Real execution requires verified empirical predictions with a companion manifest. "
-        "Pass --allow-unverified-artifact to bypass if unverified loading is explicitly intended."
-      )
+    if requested_mode == "real":
+      if not allow_unverified_artifact:
+        raise ValueError(
+          f"Prediction artifact at '{p}' has no companion manifest to verify data provenance in 'real' mode. "
+          "Real execution requires verified empirical predictions with a companion manifest. "
+          "Pass --allow-unverified-artifact to bypass if unverified loading is explicitly intended."
+        )
+      actual_mode = "unverified"
   else:
     try:
       with open(manifest_path, "r", encoding="utf-8") as f:
         loaded_json = json.load(f)
     except Exception as exc:
-      if requested_mode == "real" and not allow_unverified_artifact:
-        raise ValueError(
-          f"Companion manifest at '{manifest_path}' is malformed or unreadable: {exc}. "
-          "Real mode requires a valid JSON companion manifest. Pass --allow-unverified-artifact to bypass."
-        ) from exc
+      if requested_mode == "real":
+        if not allow_unverified_artifact:
+          raise ValueError(
+            f"Companion manifest at '{manifest_path}' is malformed or unreadable: {exc}. "
+            "Real mode requires a valid JSON companion manifest. Pass --allow-unverified-artifact to bypass."
+          ) from exc
+        actual_mode = "unverified"
       loaded_json = None
 
     if not isinstance(loaded_json, dict):
-      if requested_mode == "real" and not allow_unverified_artifact:
-        raise ValueError(
-          f"Companion manifest at '{manifest_path}' is invalid (expected JSON object). "
-          "Real mode requires a valid JSON companion manifest. Pass --allow-unverified-artifact to bypass."
-        )
+      if requested_mode == "real":
+        if not allow_unverified_artifact:
+          raise ValueError(
+            f"Companion manifest at '{manifest_path}' is invalid (expected JSON object). "
+            "Real mode requires a valid JSON companion manifest. Pass --allow-unverified-artifact to bypass."
+          )
+        actual_mode = "unverified"
       manifest_data = None
     else:
       manifest_data = loaded_json
@@ -1297,11 +1373,13 @@ def load_and_verify_prediction_artifact(
       recorded_mode = manifest_data.get("data_mode")
       if recorded_mode in ("real", "simulation"):
         actual_mode = recorded_mode
-      elif requested_mode == "real" and not allow_unverified_artifact:
-        raise ValueError(
-          f"Companion manifest at '{manifest_path}' is missing a valid 'data_mode' field. "
-          "Real mode requires data_mode to be specified. Pass --allow-unverified-artifact to bypass."
-        )
+      elif requested_mode == "real":
+        if not allow_unverified_artifact:
+          raise ValueError(
+            f"Companion manifest at '{manifest_path}' is missing a valid 'data_mode' field. "
+            "Real mode requires data_mode to be specified. Pass --allow-unverified-artifact to bypass."
+          )
+        actual_mode = "unverified"
 
       if (
         requested_mode == "real"
@@ -1317,16 +1395,21 @@ def load_and_verify_prediction_artifact(
       if verify_checksum:
         recorded_sha = manifest_data.get("predictions_artifact_sha256")
         if recorded_sha is None:
+          if requested_mode == "real":
+            if not allow_unverified_artifact:
+              raise ValueError(
+                f"Companion manifest at '{manifest_path}' is missing 'predictions_artifact_sha256' field. "
+                "Pass --allow-unverified-artifact to bypass."
+              )
+            actual_mode = "unverified"
+        elif actual_sha != recorded_sha:
           if requested_mode == "real" and not allow_unverified_artifact:
             raise ValueError(
-              f"Companion manifest at '{manifest_path}' is missing 'predictions_artifact_sha256' field. "
-              "Pass --allow-unverified-artifact to bypass."
+              f"Prediction artifact integrity error: SHA-256 mismatch for '{p}'. "
+              f"Manifest records {recorded_sha}, but file has {actual_sha}."
             )
-        elif actual_sha != recorded_sha:
-          raise ValueError(
-            f"Prediction artifact integrity error: SHA-256 mismatch for '{p}'. "
-            f"Manifest records {recorded_sha}, but file has {actual_sha}."
-          )
+          if allow_unverified_artifact:
+            actual_mode = "unverified"
 
   df = load_unified_prediction_table(p)
   return VerifiedPredictionArtifact(

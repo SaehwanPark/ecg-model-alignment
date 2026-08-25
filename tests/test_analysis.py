@@ -360,3 +360,7 @@ def test_primary_results_strata_and_quadrant_invariants() -> None:
   md_sim = generate_primary_results_markdown(result, data_mode="simulation")
   assert "> **Data Source:** SIMULATION — NOT EMPIRICAL RESULTS" in md_sim
   assert "analysis demonstration" in md_sim
+
+  md_unverified = generate_primary_results_markdown(result, data_mode="unverified")
+  assert "UNVERIFIED ARTIFACT" in md_unverified
+  assert "bypassed provenance validation" in md_unverified
