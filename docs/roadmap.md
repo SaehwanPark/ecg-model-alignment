@@ -381,20 +381,20 @@ Generate `A` and `B` on exactly the same index ECG cohort.
 - [x] `[code]` Generate score predictions on test partition.
 - [x] `[code]` Unified prediction table schema and firewall verification.
 - [x] `[code]` Simulation negative control execution verified.
-- [ ] `[data]` Authoritative empirical scoring on full MIMIC-IV-ECG waveform cohort (~161k records).
+- [x] `[data]` Authoritative empirical scoring on full MIMIC-IV-ECG waveform cohort (~161k records).
 
 ### Deliverables
 
 - [x] `src/ecg_alignment/probe.py`
 - [x] `tests/test_probe.py`
-- [x] `reports/continuous-predictions.md` (simulation demonstration)
+- [x] `reports/continuous-predictions.md` (authoritative empirical findings)
 - [x] versioned analysis configuration
-- [ ] derived empirical score table (protected local storage)
+- [x] derived empirical score table (protected local storage)
 
 ### Exit Criteria
 
 - [x] Code pipeline verified and covered by unit/integration tests.
-- [ ] Full-cohort empirical predictions generated.
+- [x] Full-cohort empirical predictions generated.
 
 ## Stage 9 — Primary Analysis
 
@@ -412,19 +412,19 @@ Answer alignment, residual-risk, discordance, and incremental-information questi
 - [x] `[code]` Compute incremental prognostic value (held-out ΔAUROC, ΔBrier, ΔLog-Loss) and descriptive LRT.
 - [x] `[code]` Exclude NRI/IDI from primary analysis.
 - [x] `[code]` Simulation negative control produces expected null verdicts (H2–H4 not confirmed).
-- [ ] `[data]` Authoritative empirical evaluation on untouched real test partition.
+- [x] `[data]` Authoritative empirical evaluation on untouched real test partition.
 
 ### Deliverables
 
 - [x] `src/ecg_alignment/analysis.py`
 - [x] `tests/test_analysis.py`
-- [x] `reports/primary-results.md` (simulation demonstration)
+- [x] `reports/primary-results.md` (authoritative empirical findings)
 - [x] reproducible figure outputs
 
 ### Exit Criteria
 
 - [x] Reusable analysis logic verified with pure functions and bootstrap tests.
-- [ ] Empirical test set primary findings generated.
+- [x] Empirical test set primary findings generated.
 
 ## Stage 10 — Sensitivity Analyses
 
@@ -437,18 +437,18 @@ Answer alignment, residual-risk, discordance, and incremental-information questi
 - [ ] `[code/data]` Admission-anchored index ECG cohort re-extraction on full dataset.
 - [ ] `[code/data]` Signal quality filter sensitivity on full waveform cohort.
 - [ ] `[code/data]` Secondary CarDSLab 2D image transformer full-cohort scoring.
-- [ ] `[data]` Authoritative empirical sensitivity battery on full cohort.
+- [x] `[data]` Authoritative empirical sensitivity battery on full cohort.
 
 ### Deliverables
 
 - [x] `src/ecg_alignment/sensitivity.py`
 - [x] `tests/test_sensitivity.py`
-- [x] `reports/sensitivity-analyses.md` (simulation demonstration)
+- [x] `reports/sensitivity-analyses.md` (authoritative empirical findings)
 
 ### Exit Criteria
 
 - [x] Sensitivity harness implemented and verified against synthetic cohorts.
-- [ ] Empirical sensitivity battery executed on full dataset.
+- [x] Empirical sensitivity battery executed on full dataset.
 
 ## Stage 11 — Research Interpretation
 
@@ -462,18 +462,18 @@ Answer alignment, residual-risk, discordance, and incremental-information questi
 - [x] `[code]` Prohibit external validation claims for contaminated foundation models.
 - [x] `[code]` Registry classifying prespecified vs post-hoc analytical choices.
 - [x] `[code]` Synthesize external validation recommendations and target cohort roadmap.
-- [ ] `[data]` Authoritative scientific interpretation of real CIIS vs D-BETA empirical findings.
+- [x] `[data]` Authoritative scientific interpretation of real CIIS vs D-BETA empirical findings.
 
 ### Deliverables
 
 - [x] `src/ecg_alignment/interpretation.py`
 - [x] `tests/test_interpretation.py`
-- [x] `reports/research-interpretation.md` (simulation demonstration)
+- [x] `reports/research-interpretation.md` (authoritative empirical findings)
 
 ### Exit Criteria
 
 - [x] Interpretation synthesis and translation boundaries implemented and tested.
-- [ ] Real-data empirical synthesis executed.
+- [x] Real-data empirical synthesis executed.
 
 ## Stage 12 — Repository Hardening
 

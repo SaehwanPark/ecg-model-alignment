@@ -643,7 +643,12 @@ def score_traditional_cohort(
   """
   data_dir = Path(ecg_data_dir) if ecg_data_dir is not None else None
 
-  results: list[dict[str, Any]] = []
+  subject_ids: list[int] = []
+  study_ids: list[int] = []
+  scores: list[float | None] = []
+  categories: list[str | None] = []
+  valid_flags: list[bool] = []
+  errors: list[str | None] = []
 
   for row in cohort_df.iter_rows(named=True):
     subj_id = int(row["subject_id"])
@@ -652,29 +657,41 @@ def score_traditional_cohort(
 
     rec_path = data_dir / rel_path if data_dir is not None else Path(rel_path)
 
+    subject_ids.append(subj_id)
+    study_ids.append(study_id)
+
     try:
       signal_array, lead_names, fs = read_ecg_waveform(rec_path)
       res = score_ecg_waveform(signal_array, lead_names, fs)
 
-      results.append({
-        "subject_id": subj_id,
-        "study_id": study_id,
-        "model_a_score": res.total_score,
-        "model_a_category": res.category.value if res.category is not None else None,
-        "model_a_valid": res.is_valid,
-        "model_a_error": res.error_message,
-      })
+      scores.append(res.total_score)
+      categories.append(res.category.value if res.category is not None else None)
+      valid_flags.append(res.is_valid)
+      errors.append(res.error_message)
     except Exception as exc:
-      results.append({
-        "subject_id": subj_id,
-        "study_id": study_id,
-        "model_a_score": None,
-        "model_a_category": None,
-        "model_a_valid": False,
-        "model_a_error": str(exc),
-      })
+      scores.append(None)
+      categories.append(None)
+      valid_flags.append(False)
+      errors.append(str(exc))
 
-  return pl.DataFrame(results)
+  return pl.DataFrame(
+    {
+      "subject_id": subject_ids,
+      "study_id": study_ids,
+      "model_a_score": scores,
+      "model_a_category": categories,
+      "model_a_valid": valid_flags,
+      "model_a_error": errors,
+    },
+    schema={
+      "subject_id": pl.Int64,
+      "study_id": pl.Int64,
+      "model_a_score": pl.Float64,
+      "model_a_category": pl.String,
+      "model_a_valid": pl.Boolean,
+      "model_a_error": pl.String,
+    },
+  )
 
 
 def extract_transformer_embeddings(

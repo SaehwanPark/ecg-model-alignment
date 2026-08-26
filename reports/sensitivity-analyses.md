@@ -1,6 +1,6 @@
 # Stage 10 Validation Report: Sensitivity and Robustness Analyses
 
-> **Data Source:** SIMULATION — NOT EMPIRICAL RESULTS
+> **Data Source:** REAL MIMIC-IV-ECG predictions
 
 ## 1. Executive Summary
 
@@ -47,11 +47,11 @@ flowchart TD
 
 | Mortality Horizon | Patients ($N$) | Events ($N$) | Event Rate (%) | Model A AUROC | Model B AUROC | $\Delta\text{AUROC}$ | Likelihood Ratio $\chi^2$ | $p$-value |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **30-Day Mortality (Primary)** | 32,256 | 941 | 2.92% | 0.485 (95% CI: 0.468–0.505) | 0.491 (95% CI: 0.473–0.508) | **+0.0065** | $\Delta G^2 = 1.95$ | $p = 0.1625$ |
-| **90-Day Mortality** | 32,256 | 1,497 | 4.64% | 0.498 (95% CI: 0.486–0.511) | 0.499 (95% CI: 0.486–0.512) | **+0.0012** | $\Delta G^2 = 1.33$ | $p = 0.2492$ |
-| **1-Year Mortality** | 32,256 | 2,568 | 7.96% | 0.502 (95% CI: 0.492–0.512) | 0.499 (95% CI: 0.487–0.509) | **-0.0025** | $\Delta G^2 = 1.27$ | $p = 0.2591$ |
+| **30-Day Mortality (Primary)** | 31,867 | 924 | 2.90% | 0.682 (95% CI: 0.666–0.698) | 0.836 (95% CI: 0.824–0.848) | **+0.1537** | $\Delta G^2 = 3134.89$ | $p < 0.001$ |
+| **90-Day Mortality** | 31,867 | 1,473 | 4.62% | 0.677 (95% CI: 0.663–0.690) | 0.813 (95% CI: 0.803–0.824) | **+0.1360** | $\Delta G^2 = 3711.66$ | $p < 0.001$ |
+| **1-Year Mortality** | 31,867 | 2,534 | 7.95% | 0.661 (95% CI: 0.650–0.671) | 0.783 (95% CI: 0.775–0.792) | **+0.1220** | $\Delta G^2 = 4371.95$ | $p < 0.001$ |
 
-> **Finding:** Across evaluated mortality endpoints, performance comparisons are detailed above.
+> **Finding:** Across evaluated mortality endpoints, Model B demonstrates positive discriminative increment over Model A ($\Delta\text{AUROC}$ range: +0.1220 to +0.1537).
 
 ---
 
@@ -83,10 +83,10 @@ flowchart TD
 
 | Subgroup Stratum | Patients ($N$) | Events ($N$) | Event Rate (%) | Model A AUROC (95% CI) | Model B AUROC (95% CI) | $\Delta\text{AUROC}$ | Model B AUPRC (95% CI) | Spearman $\rho$ |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Age Group: Age <65 years** | 19,877 | 252 | 1.27% | 0.473 (95% CI: 0.438–0.502) | 0.472 (95% CI: 0.439–0.510) | **-0.0008** | 0.012 (95% CI: 0.011–0.015) | 0.453 |
-| **Age Group: Age >=65 years** | 12,379 | 689 | 5.57% | 0.487 (95% CI: 0.452–0.507) | 0.497 (95% CI: 0.478–0.523) | **+0.0097** | 0.055 (95% CI: 0.051–0.064) | 0.442 |
-| **Sex / Gender: Female** | 16,808 | 453 | 2.70% | 0.487 (95% CI: 0.461–0.506) | 0.482 (95% CI: 0.455–0.502) | **-0.0053** | 0.027 (95% CI: 0.024–0.032) | 0.443 |
-| **Sex / Gender: Male** | 15,448 | 488 | 3.16% | 0.482 (95% CI: 0.453–0.517) | 0.500 (95% CI: 0.470–0.528) | **+0.0179** | 0.031 (95% CI: 0.028–0.034) | 0.454 |
+| **Age Group: Age <65 years** | 19,641 | 246 | 1.25% | 0.676 (95% CI: 0.640–0.709) | 0.869 (95% CI: 0.846–0.889) | **+0.1932** | 0.105 (95% CI: 0.081–0.138) | 0.379 |
+| **Age Group: Age >=65 years** | 12,226 | 678 | 5.55% | 0.603 (95% CI: 0.584–0.624) | 0.765 (95% CI: 0.749–0.782) | **+0.1623** | 0.171 (95% CI: 0.151–0.197) | 0.442 |
+| **Sex / Gender: Female** | 16,654 | 446 | 2.68% | 0.702 (95% CI: 0.678–0.723) | 0.831 (95% CI: 0.811–0.847) | **+0.1291** | 0.137 (95% CI: 0.117–0.165) | 0.448 |
+| **Sex / Gender: Male** | 15,213 | 478 | 3.14% | 0.663 (95% CI: 0.639–0.685) | 0.840 (95% CI: 0.823–0.855) | **+0.1773** | 0.160 (95% CI: 0.136–0.189) | 0.484 |
 
 > **Predictor-Information Firewall Verification:** Demographic variables (age, sex) were strictly evaluated post-hoc as evaluation strata on the test set. Zero demographic features entered predictor models.
 
@@ -95,5 +95,5 @@ flowchart TD
 ## 9. Conclusion & Stage 10 Exit Criteria
 
 1. **Evaluated Sensitivity Dimensions**: Alternative mortality horizons, Demographic evaluation strata.
-2. **Conclusion Invariance**: Evaluated sensitivity analyses showed mixed or near-null effect directions across specifications (4 positive, 3 non-positive delta AUROCs); directional consistency was not uniform.
+2. **Conclusion Invariance**: Evaluated sensitivity analyses confirmed directional consistency with primary findings across all 7 specifications.
 3. **Firewall Integrity**: All tests strictly respected the predictor-information firewall and patient disjointness.
