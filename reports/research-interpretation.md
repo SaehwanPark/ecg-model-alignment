@@ -1,29 +1,29 @@
 # Stage 11 Research Report: Comprehensive Scientific Interpretation & Translation Boundaries
 
-> **Data Source:** SIMULATION — NOT EMPIRICAL RESULTS
+> **Data Source:** REAL MIMIC-IV-ECG predictions
 
 ## 1. Executive Summary & Hypotheses Verdict
 
-This report delivers the authoritative Stage 11 scientific interpretation for the ECG Model Alignment project (analysis demonstration). We synthesize primary findings (Stage 9), comprehensive sensitivity checks (Stage 10), and explicit translational boundaries comparing traditional rule-based ECG scoring (**Model `A`**: Cardiac Infarction/Injury Score [CIIS]) against a modern multimodal transformer representation (**Model `B`**: D-BETA 768-d frozen embeddings + $L_2$ probe) in MIMIC-IV.
+This report delivers the authoritative Stage 11 scientific interpretation for the ECG Model Alignment project (empirical evaluation). We synthesize primary findings (Stage 9), comprehensive sensitivity checks (Stage 10), and explicit translational boundaries comparing traditional rule-based ECG scoring (**Model `A`**: Cardiac Infarction/Injury Score [CIIS]) against a modern multimodal transformer representation (**Model `B`**: D-BETA 768-d frozen embeddings + $L_2$ probe) in MIMIC-IV.
 
 ```mermaid
 flowchart TD
   subgraph Findings['Empirical Synthesis (Stages 9-10)']
-    F1['1. Moderate Alignment (rho = 0.448)']
-    F2['2. Residual Risk Gradients (0.86x - 1.26x within CIIS)']
-    F3['3. Discordance Analysis (Occult Risk RR = 1.03x)']
-    F4['4. Incremental Information (Delta AUROC = +0.0115)']
+    F1['1. Moderate Alignment (rho = 0.466)']
+    F2['2. Residual Risk Gradients (17.09x - infx within CIIS)']
+    F3['3. Discordance Analysis (Occult Risk RR = 8.95x)']
+    F4['4. Incremental Information (Delta AUROC = +0.1394)']
   end
 
   subgraph Boundaries['Stage 11 Translation & Guardrail Boundaries']
     B1['Pretraining Contamination Disclosure (In-Domain Probing)']
     B2['Statistical Incremental Value != Clinical Utility']
     B3['Prespecified vs Post-Hoc Registry Separation']
-    B4['High Technical Completeness (100.00% Scored)']
+    B4['High Technical Completeness (98.89% Scored)']
   end
 
   subgraph Conclusion['Next Steps']
-    C1['External Validation: Inconclusive (PTB-XL, CODE, UK Biobank)']
+    C1['External Validation: Justified (PTB-XL, CODE, UK Biobank)']
   end
 
   Findings --> Boundaries --> Conclusion
@@ -34,42 +34,42 @@ flowchart TD
 ## 2. Core Research Questions & Definitive Interpretations
 
 ### Question 1: Global Score Alignment
-- **Empirical Alignment:** Spearman rank correlation $\rho = 0.448$ ($p < 10^{-15}$), Pearson $r = 0.491$ ($p < 10^{-15}$).
+- **Empirical Alignment:** Spearman rank correlation $\rho = 0.466$ ($p < 10^{-15}$), Pearson $r = 0.377$ ($p < 10^{-15}$).
 - **Prespecified Classification:** **MODERATE ALIGNMENT** (0.30 $\le |\rho| <$ 0.70).
-- **Interpretation:** Spearman rho = 0.448 indicates moderate alignment (0.30 <= |rho| < 0.70), demonstrating that the modern transformer representation partially recovers classical electrophysiologic injury patterns while retaining substantial complementary representation capacity.
+- **Interpretation:** Spearman rho = 0.466 indicates moderate alignment (0.30 <= |rho| < 0.70), demonstrating that the modern transformer representation partially recovers classical electrophysiologic injury patterns while retaining substantial complementary representation capacity.
 
 ### Question 2: Residual Risk Within Traditional Strata
-- **Summary Finding:** No consistent residual-risk gradient was detected; none of the 4 traditional CIIS strata met the prespecified meaningful-gradient threshold of 1.50x (mean gradient ratio 1.03x; gradient ratios: 1.09x, 0.94x, 1.26x, 0.86x).
+- **Summary Finding:** Model B consistently uncovers substantial residual risk gradients across all 4 traditional CIIS risk categories (gradient ratios: 18.00x, 3.00x, 21.50x, 17.09x; mean 14.90x).
 
 | CIIS Traditional Category | Patient Count ($N$) | Baseline Event Rate | Model B Tertile 1 Rate | Model B Tertile 3 Rate | Gradient Ratio ($T_3 / T_1$) | Risk Difference | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **normal** | 14,729 | 3.17% | 3.22% | 3.50% | **1.09x** | +0.29% | Sub-threshold |
-| **borderline** | 8,641 | 2.66% | 2.71% | 2.53% | **0.94x** | -0.17% | Sub-threshold |
-| **possible_injury** | 4,895 | 2.72% | 2.14% | 2.70% | **1.26x** | +0.55% | Sub-threshold |
-| **probable_infarction** | 3,991 | 2.78% | 3.16% | 2.71% | **0.86x** | -0.45% | Sub-threshold |
+| **normal** | 3,681 | 0.71% | 0.08% | 1.47% | **18.00x** | +1.39% | **Meaningful Gradient** |
+| **borderline** | 5,199 | 1.23% | 0.00% | 3.17% | **infx** | +3.17% | **Meaningful Gradient** |
+| **possible_injury** | 5,705 | 1.75% | 0.21% | 4.52% | **21.50x** | +4.31% | **Meaningful Gradient** |
+| **probable_infarction** | 17,282 | 4.25% | 0.57% | 9.79% | **17.09x** | +9.22% | **Meaningful Gradient** |
 
-> **Key Clinical Takeaway:** No consistent residual-risk gradient was detected; none of the 4 traditional CIIS strata met the prespecified meaningful-gradient threshold of 1.50x (mean gradient ratio 1.03x; gradient ratios: 1.09x, 0.94x, 1.26x, 0.86x).
+> **Key Clinical Takeaway:** Model B consistently uncovers substantial residual risk gradients across all 4 traditional CIIS risk categories (gradient ratios: 18.00x, 3.00x, 21.50x, 17.09x; mean 14.90x).
 
 ### Question 3: Discordance Analysis & Occult Risk Identification
-- Discordance analysis shows no statistically significant divergence in mortality risk between concordant and discordant risk quadrants at the prespecified thresholds.
+- Discordance analysis demonstrates evidence of risk divergence between Model A and Model B in the test cohort, identifying patients where multimodal transformer representations diverge from traditional rule-based classification.
 
 | Quadrant | Label | Criteria | Patient Proportion ($N$) | 30-Day Mortality | Clinical Characterization |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Quadrant A-low / B-low** | `A-low / B-low` | A < 15.0, B < 0.365 | 43.2% (13,930) | **2.94%** | Concordant low risk: Preserved baseline electrophysiology and low transformer risk score. Serves as reference low-risk baseline. |
-| **Quadrant A-low / B-high** | `A-low / B-high` | A < 15.0, B >= 0.365 | 29.3% (9,440) | **3.04%** | Discordant group (A-low / B-high): Low traditional CIIS score but elevated transformer risk score. |
-| **Quadrant A-high / B-low** | `A-high / B-low` | A >= 15.0, B < 0.365 | 6.8% (2,198) | **2.64%** | Discordant group (A-high / B-low): Elevated traditional CIIS score but low transformer risk score. |
-| **Quadrant A-high / B-high** | `A-high / B-high` | A >= 15.0, B >= 0.365 | 20.7% (6,688) | **2.78%** | Concordant high risk: Both elevated traditional CIIS score and elevated transformer risk score. |
+| **Quadrant A-low / B-low** | `A-low / B-low` | A < 15.0, B < 0.011 | 20.4% (6,496) | **0.32%** | Concordant low risk: Preserved baseline electrophysiology and low transformer risk score. Serves as reference low-risk baseline. |
+| **Quadrant A-low / B-high** | `A-low / B-high` | A < 15.0, B >= 0.011 | 7.5% (2,384) | **2.89%** | Discordant group (A-low / B-high): Low traditional CIIS score but elevated transformer risk score. |
+| **Quadrant A-high / B-low** | `A-high / B-low` | A >= 15.0, B < 0.011 | 29.6% (9,437) | **0.50%** | Discordant group (A-high / B-low): Elevated traditional CIIS score but low transformer risk score. |
+| **Quadrant A-high / B-high** | `A-high / B-high` | A >= 15.0, B >= 0.011 | 42.5% (13,550) | **5.81%** | Concordant high risk: Both elevated traditional CIIS score and elevated transformer risk score. |
 
-- **Occult High-Risk Contrast (Q2 vs Q1):** Patients in Quadrant 2 (A-low / B-high, N = 9,440, 29.3%) exhibit a 30-day mortality rate of 3.04%, compared to 2.94% in Quadrant 1 (A-low / B-low). The risk difference of 0.0010 (95% CI: -0.0035–0.0058) (RR = 1.03 (95% CI: 0.89–1.21)) did not reach statistical significance at the 95% confidence level.
-- **Pseudo-High Risk Contrast (Q4 vs Q3):** Patients in Quadrant 3 (A-high / B-low, N = 2,198, 6.8%) exhibit a 30-day mortality rate of 2.64%, compared to 2.78% observed in Quadrant 4 (A-high / B-high) (Risk Difference: 0.0014 (95% CI: -0.0028–0.0076)).
+- **Occult High-Risk Contrast (Q2 vs Q1):** Patients in Quadrant 2 (A-low / B-high, N = 2,384, 7.5%) exhibit a 30-day mortality rate of 2.89%, compared to 0.32% in Quadrant 1 (A-low / B-low). This represents a statistically significant risk difference of 0.0257 (95% CI: 0.0188–0.0326) (RR = 8.95 (95% CI: 5.67–15.94)), identifying a cohort with higher observed mortality despite low CIIS score.
+- **Pseudo-High Risk Contrast (Q4 vs Q3):** Patients in Quadrant 3 (A-high / B-low, N = 9,437, 29.6%) exhibit a 30-day mortality rate of 0.50%, compared to 5.81% observed in Quadrant 4 (A-high / B-high) (Risk Difference: 0.0531 (95% CI: 0.0489–0.0572)).
 
 ---
 
 ## 3. Translation Boundaries: Statistical Incremental Value vs Clinical Utility
 
-> RESEARCH BOUNDARY: In this evaluation, multimodal transformer representations did not demonstrate statistically significant incremental prognostic information beyond traditional ECG scores on the held-out test partition. Regardless of statistical effect size, statistical metrics do not establish clinical utility or bedside readiness.
+> RESEARCH BOUNDARY: While multimodal transformer representations demonstrate incremental prognostic signal beyond traditional ECG scores in this evaluation, statistical improvement does NOT establish clinical utility, therapeutic efficacy, or readiness for autonomous bedside deployment.
 
-1. **Statistical Demonstration:** Statistical evaluation does not demonstrate statistically significant incremental prognostic information on the test partition (Incremental Delta AUROC = 0.0115 (95% CI: -0.0026–0.0297), Incremental Delta Brier = 0.0000 (95% CI: -0.0000–0.0000); Descriptive Nested Likelihood Ratio Test Delta G^2 = 1.93, p = 1.65e-01).
+1. **Statistical Demonstration:** Statistical evaluation demonstrates incremental prognostic information on the test partition (Incremental Delta AUROC = 0.1394 (95% CI: 0.1264–0.1526), Incremental Delta Brier = 0.0007 (95% CI: 0.0002–0.0012); Descriptive Nested Likelihood Ratio Test Delta G^2 = 3099.50, p < 10^-15).
 2. **The Clinical Gap:** However, statistical incremental value does NOT equate to clinical bedside utility. Demonstrating that an AI score improves likelihood-ratio chi-square or AUROC is a necessary prerequisite, but is insufficient to prove clinical efficacy, net benefit, or safety in patient care.
 
 ### Required Evidence for Bedside Deployment
@@ -100,13 +100,13 @@ Before any clinical implementation or decision-support deployment could be consi
 
 ## 5. Technical Failure Rates & Data Completeness
 
-Technical scoring execution demonstration mode: Simulation run generated synthetic prediction rows across 161,279 cohort records. Empirical waveform parsing and scoring completeness will be evaluated during the authoritative full-cohort run on raw WFDB records.
+Technical scoring achieved high technical completion across the cohort: Model A (CIIS) completed scoring on 159,495 / 161,279 waveforms (failure rate 1.106%), while Model B (D-BETA) completed scoring on 159,577 / 161,279 (failure rate 1.055%). The joint analytic cohort retained 98.89% of all eligible index ECGs.
 
 | Pipeline Stage | Evaluated Units | Technical Successes | Technical Failures | Failure Rate | Primary Failure Mechanisms |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Model A (CIIS Score)** | 161,279 | 161,279 | 0 | 0.000% | Baseline wander, amplitude extremes |
-| **Model B (D-BETA Probe)** | 161,279 | 161,279 | 0 | 0.000% | None (100% complete) |
-| **Joint Analytic Cohort** | 161,279 | 161,279 | 0 | 0.000% | Missing leads / uncomputable CIIS |
+| **Model A (CIIS Score)** | 161,279 | 159,495 | 1784 | 1.106% | Baseline wander, amplitude extremes |
+| **Model B (D-BETA Probe)** | 161,279 | 159,577 | 1702 | 1.055% | None (100% complete) |
+| **Joint Analytic Cohort** | 161,279 | 159,495 | 1784 | 1.106% | Missing leads / uncomputable CIIS |
 
 ---
 
@@ -144,7 +144,7 @@ To maintain complete scientific transparency, all methodological components are 
 
 ## 7. Future Directions & External Validation Roadmap
 
-> DECISION: Evidence for external validation is INCONCLUSIVE. The observed incremental effect size is modest or CI crosses null (Incremental Delta AUROC = 0.0115 (95% CI: -0.0026–0.0297)). External validation on larger multi-center cohorts may be considered to resolve uncertainty, but evidence of clear in-domain superiority is not yet established.
+> DECISION: Formal external validation is STRONGLY JUSTIFIED. The demonstrated incremental prognostic performance of the transformer representation, combined with the presence of in-domain pretraining contamination in MIMIC-IV-ECG, makes an independent multi-center external validation study the logical next step.
 
 ### Multi-Center External Validation Study Plan
 1. **Target Independent Cohorts:**
@@ -168,13 +168,13 @@ To maintain complete scientific transparency, all methodological components are 
 
 | Exit Criterion | Roadmap Requirement | Empirical Result | Status |
 | :--- | :--- | :--- | :--- |
-| **Alignment Strength Classified** | Prespecified descriptive thresholds | Moderate alignment (rho = 0.448) | **Satisfied** |
-| **Within-A Gradients Evaluated** | Outcome gradients across all CIIS categories | 0.86x - 1.26x within CIIS across all 4 strata | **Satisfied** |
-| **Discordance Interpreted** | 4-quadrant characterization & occult risk | Q2 occult risk evaluated (RR = 1.03x) | **Satisfied** |
+| **Alignment Strength Classified** | Prespecified descriptive thresholds | Moderate alignment (rho = 0.466) | **Satisfied** |
+| **Within-A Gradients Evaluated** | Outcome gradients across all CIIS categories | 17.09x - infx within CIIS across all 4 strata | **Satisfied** |
+| **Discordance Interpreted** | 4-quadrant characterization & occult risk | Q2 occult risk evaluated (RR = 8.95x) | **Satisfied** |
 | **Statistical vs Utility Formalized** | Strict separation of LRT vs clinical utility | Formal boundary statement documented | **Satisfied** |
 | **Contamination Disclosed** | Explicit audit of MIMIC pretraining | In-domain probing label enforced; external claims barred | **Satisfied** |
-| **Technical Completion Rate Cataloged** | Completeness across models | Model A: 0.000%, Model B: 0.000%, Total: 100.000% | **Satisfied** |
+| **Technical Completion Rate Cataloged** | Completeness across models | Model A: 1.106%, Model B: 1.055%, Total: 98.894% | **Satisfied** |
 | **Prespecified vs Post-Hoc Separated** | Registry of analytical components | 10 Prespecified vs 6 Post-Hoc items documented | **Satisfied** |
-| **External Validation Decision** | Formal study recommendation | Inconclusive for multi-center cohorts | **Satisfied** |
+| **External Validation Decision** | Formal study recommendation | Justified for multi-center cohorts | **Satisfied** |
 
 Stage 11 is complete. The repository is ready for final Stage 12 hardening.

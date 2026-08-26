@@ -536,9 +536,32 @@ def build_real_predictions_for_cohort(
   """Score Model A (CIIS) and Model B (D-BETA + linear probe) on real waveforms."""
   cohort_df = split_res.cohort_df
 
-  if verbose:
-    print(f"[Scoring] Computing traditional Model A (CIIS) for {len(cohort_df):,} waveforms...")
-  model_a_df = score_traditional_cohort(cohort_df, ecg_data_dir=ecg_root)
+  model_a_cache_path: Path | None = (
+    checkpoint_path.parent / "model_a_ciis.parquet" if checkpoint_path is not None else None
+  )
+  model_a_df: pl.DataFrame | None = None
+  if model_a_cache_path is not None and model_a_cache_path.exists():
+    try:
+      cached_a = pl.read_parquet(model_a_cache_path)
+      if len(cached_a) == len(cohort_df) and "model_a_score" in cached_a.columns:
+        if verbose:
+          print(f"[Scoring] Loaded cached Model A (CIIS) from {model_a_cache_path}")
+        model_a_df = cached_a
+    except Exception:
+      model_a_df = None
+
+  if model_a_df is None:
+    if verbose:
+      print(f"[Scoring] Computing traditional Model A (CIIS) for {len(cohort_df):,} waveforms...")
+    model_a_df = score_traditional_cohort(cohort_df, ecg_data_dir=ecg_root)
+    if model_a_cache_path is not None:
+      try:
+        model_a_cache_path.parent.mkdir(parents=True, exist_ok=True)
+        model_a_df.write_parquet(model_a_cache_path)
+        if verbose:
+          print(f"[Scoring] Cached Model A (CIIS) to {model_a_cache_path}")
+      except Exception:
+        pass
 
   if verbose:
     print(f"[Scoring] Extracting Model B (D-BETA) representations on {device} (batch size {batch_size}) for {len(cohort_df):,} waveforms...")

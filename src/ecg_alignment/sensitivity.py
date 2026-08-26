@@ -285,7 +285,15 @@ def evaluate_outcome_horizons(
       logger.warning("Horizon column %s not found in test_df, skipping.", col_name)
       continue
 
-    valid_subset = test_df.filter(pl.col(col_name).is_not_null())
+    valid_subset = test_df.filter(
+      pl.col(col_name).is_not_null()
+      & (pl.col("model_a_valid") == True)
+      & (pl.col("model_b_valid") == True)
+      & pl.col("model_a_score").is_not_null()
+      & pl.col("model_b_score").is_not_null()
+    ) if "model_a_valid" in test_df.columns and "model_b_valid" in test_df.columns else test_df.filter(
+      pl.col(col_name).is_not_null() & pl.col("model_a_score").is_not_null() & pl.col("model_b_score").is_not_null()
+    )
     if len(valid_subset) == 0:
       continue
 
@@ -320,7 +328,15 @@ def evaluate_outcome_horizons(
 
     # Fit dev-calibrated models for Model A probability and LRT to prevent test set leakage
     if dev_df is not None and col_name in dev_df.columns:
-      dev_sub = dev_df.filter(pl.col(col_name).is_not_null())
+      dev_sub = dev_df.filter(
+        pl.col(col_name).is_not_null()
+        & (pl.col("model_a_valid") == True)
+        & (pl.col("model_b_valid") == True)
+        & pl.col("model_a_score").is_not_null()
+        & pl.col("model_b_score").is_not_null()
+      ) if "model_a_valid" in dev_df.columns and "model_b_valid" in dev_df.columns else dev_df.filter(
+        pl.col(col_name).is_not_null() & pl.col("model_a_score").is_not_null() & pl.col("model_b_score").is_not_null()
+      )
       y_dev = dev_sub[col_name].to_numpy().astype(np.int64)
       a_dev = dev_sub["model_a_score"].to_numpy().astype(np.float64)
       b_dev = dev_sub["model_b_score"].to_numpy().astype(np.float64)
@@ -775,7 +791,18 @@ def evaluate_demographic_subgroups(
   Returns:
     Tuple of DemographicSubgroupSensitivityResult objects.
   """
-  joined = test_predictions_df.join(evaluation_strata_df, on="subject_id", how="inner")
+  valid_preds = test_predictions_df.filter(
+    (pl.col("model_a_valid") == True)
+    & (pl.col("model_b_valid") == True)
+    & pl.col("model_a_score").is_not_null()
+    & pl.col("model_b_score").is_not_null()
+    & pl.col(outcome_col).is_not_null()
+  ) if "model_a_valid" in test_predictions_df.columns and "model_b_valid" in test_predictions_df.columns else test_predictions_df.filter(
+    pl.col("model_a_score").is_not_null()
+    & pl.col("model_b_score").is_not_null()
+    & pl.col(outcome_col).is_not_null()
+  )
+  joined = valid_preds.join(evaluation_strata_df, on="subject_id", how="inner")
   results: list[DemographicSubgroupSensitivityResult] = []
 
   # 1. Age groups

@@ -132,6 +132,7 @@ def test_cli_missing_files_error_handling(tmp_path: Path) -> None:
     "inventory",
     "--mimic-root", str(tmp_path / "nonexistent_mimic"),
     "--ecg-root", str(tmp_path / "nonexistent_ecg"),
+    "--output-dir", str(tmp_path / "empty_output"),
   ])
   ctx = create_cli_context(args)
 
