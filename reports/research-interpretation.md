@@ -8,22 +8,22 @@ This report delivers the authoritative Stage 11 scientific interpretation for th
 
 ```mermaid
 flowchart TD
-  subgraph Findings['Empirical Synthesis (Stages 9-10)']
-    F1['1. Moderate Alignment (rho = 0.466)']
-    F2['2. Residual Risk Gradients (17.09x - infx within CIIS)']
-    F3['3. Discordance Analysis (Occult Risk RR = 8.95x)']
-    F4['4. Incremental Information (Delta AUROC = +0.1394)']
+  subgraph Findings["Empirical Synthesis (Stages 9-10)"]
+    F1["1. Moderate Alignment (rho = 0.466)"]
+    F2["2. Residual Risk Gradients (17.09x - infx within CIIS)"]
+    F3["3. Discordance Analysis (Occult Risk RR = 8.95x)"]
+    F4["4. Incremental Information (Delta AUROC = +0.1394)"]
   end
 
-  subgraph Boundaries['Stage 11 Translation & Guardrail Boundaries']
-    B1['Pretraining Contamination Disclosure (In-Domain Probing)']
-    B2['Statistical Incremental Value != Clinical Utility']
-    B3['Prespecified vs Post-Hoc Registry Separation']
-    B4['High Technical Completeness (98.89% Scored)']
+  subgraph Boundaries["Stage 11 Translation & Guardrail Boundaries"]
+    B1["Pretraining Contamination Disclosure (In-Domain Probing)"]
+    B2["Statistical Incremental Value != Clinical Utility"]
+    B3["Prespecified vs Post-Hoc Registry Separation"]
+    B4["High Technical Completeness (98.89% Scored)"]
   end
 
-  subgraph Conclusion['Next Steps']
-    C1['External Validation: Justified (PTB-XL, CODE, UK Biobank)']
+  subgraph Conclusion["Next Steps"]
+    C1["External Validation: Justified (PTB-XL, CODE, UK Biobank)"]
   end
 
   Findings --> Boundaries --> Conclusion
