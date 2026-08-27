@@ -20,4 +20,6 @@ This directory stores reproducible research reports, aggregate inventories, mode
 - `reports/primary-results.md`: Stage 9 primary statistical analysis (alignment, performance, stratified risk, discordance, incremental information).
 - `reports/sensitivity-analyses.md`: Stage 10 sensitivity and robustness analyses (cohort index anchoring, alternative horizons, probe variants, quality filtering, alternative traditional models, secondary transformer architectures, demographic subgroups).
 - `reports/research-interpretation.md`: Stage 11 comprehensive research interpretation, translation boundaries, pretraining contamination audit, technical failure catalog, and external validation roadmap.
+- `reports/report-2026-08-27.md`: Comprehensive executive research summary report synthesizing problem formulation, methodology, continuous risk density distributions, empirical findings, decision curve analysis, and clinical translation boundaries.
+- `reports/figures/`: High-resolution analytical and distribution figures.
 
