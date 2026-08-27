@@ -63,7 +63,6 @@ artifacts/
 *.feather
 run_manifest.json
 *.manifest.json
-reports/figures/
 reports/output/
 
 # Operating system & editor metadata
