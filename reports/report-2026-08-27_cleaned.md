@@ -249,3 +249,38 @@ Model `B` demonstrates good calibration across all ten test risk deciles:
 > D-BETA and other candidate foundation models were pretrained on MIMIC-IV-ECG waveforms and reports.
 >
 > Although our supervised probe split is strictly patient-disjoint, the self-supervised pretraining weights saw MIMIC-IV-ECG.
+
+## Future Directions
+
+The current findings motivate three complementary extensions focused on interpretation, representation robustness, and external transportability.
+
+### 1. Deeper Characterization of CIIS–D-BETA Discordance
+
+Future analyses should investigate which ECG characteristics distinguish concordant and discordant Model `A` / Model `B` groups. Priority analyses include:
+
+* Decomposition of CIIS into its individual morphologic components.
+* Post-hoc characterization of rhythm, conduction, interval, axis, ST/T-wave, and other ECG phenotypes.
+* Validation of computational CIIS waveform measurements against independent reference measurements where feasible.
+* Examination of whether D-BETA captures prognostic information already represented implicitly by CIIS versus additional electrophysiologic patterns outside the CIIS construct.
+
+### 2. Alternative Modern ECG Representations
+
+The analysis should be extended beyond D-BETA to determine whether the observed alignment, residual-risk, and discordance patterns are architecture-specific or representation-general. Candidate Model `B` comparators include:
+
+* Alternative pretrained ECG waveform or image encoders.
+* ECG-specific multimodal language models.
+* General-purpose multimodal language models applied to rendered 12-lead ECGs.
+* Appropriate control representations, including randomly initialized encoders or simpler supervised models.
+
+Comparisons should preserve the same downstream evaluation framework, including global alignment, within-CIIS risk gradients, discordance contrasts, and incremental prognostic information.
+
+### 3. Validation in Pretraining-Unseen Cohorts
+
+Because MIMIC-IV-ECG was included in the pretraining corpus of several contemporary ECG foundation models, independent validation is an important next step. External datasets should be selected separately for each model based on verified pretraining provenance.
+
+Priority cohorts may include CODE-derived datasets, PTB-XL and related PhysioNet cohorts, SaMi-Trop, UK Biobank, or other independently sourced 12-lead ECG datasets with suitable outcomes. These analyses should distinguish:
+
+1. **Representation generalization** across ECG populations and diagnostic distributions; and
+2. **Prognostic transportability** across populations with longitudinal clinical outcomes.
+
+Together, these extensions would test whether the observed CIIS–foundation-model relationship reflects a D-BETA/MIMIC-specific phenomenon or a broader property of modern ECG representations.
